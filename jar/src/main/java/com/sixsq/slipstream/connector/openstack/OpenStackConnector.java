@@ -41,6 +41,7 @@ import org.jclouds.openstack.nova.v2_0.options.CreateServerOptions;
 import org.jclouds.openstack.v2_0.domain.Resource;
 import org.jclouds.rest.RestContext;
 
+import java.util.Collection;
 import java.util.Map;
 import java.util.Properties;
 import java.util.logging.Logger;
