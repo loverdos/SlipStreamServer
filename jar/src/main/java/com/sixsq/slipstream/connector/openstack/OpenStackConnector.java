@@ -20,12 +20,16 @@ package com.sixsq.slipstream.connector.openstack;
  * -=================================================================-
  */
 
-import java.util.Map;
-import java.util.Properties;
-import java.util.logging.Logger;
-
+import com.google.common.collect.FluentIterable;
+import com.google.common.collect.Multimap;
+import com.sixsq.slipstream.configuration.Configuration;
+import com.sixsq.slipstream.connector.Credentials;
+import com.sixsq.slipstream.connector.JCloudsConnectorBase;
+import com.sixsq.slipstream.exceptions.*;
+import com.sixsq.slipstream.persistence.*;
 import org.jclouds.Constants;
 import org.jclouds.ContextBuilder;
+import org.jclouds.compute.ComputeServiceContext;
 import org.jclouds.openstack.keystone.v2_0.config.CredentialTypes;
 import org.jclouds.openstack.keystone.v2_0.config.KeystoneProperties;
 import org.jclouds.openstack.nova.v2_0.NovaApi;
@@ -37,26 +41,10 @@ import org.jclouds.openstack.nova.v2_0.options.CreateServerOptions;
 import org.jclouds.openstack.v2_0.domain.Resource;
 import org.jclouds.rest.RestContext;
 
-import org.jclouds.compute.ComputeServiceContext;
-import com.google.common.collect.FluentIterable;
-import com.google.common.collect.Multimap;
-import com.sixsq.slipstream.configuration.Configuration;
-import com.sixsq.slipstream.connector.Credentials;
-import com.sixsq.slipstream.connector.JCloudsConnectorBase;
-import com.sixsq.slipstream.exceptions.ClientExecutionEnginePluginException;
-import com.sixsq.slipstream.exceptions.ConfigurationException;
-import com.sixsq.slipstream.exceptions.InvalidElementException;
-import com.sixsq.slipstream.exceptions.ServerExecutionEnginePluginException;
-import com.sixsq.slipstream.exceptions.SlipStreamClientException;
-import com.sixsq.slipstream.exceptions.SlipStreamException;
-import com.sixsq.slipstream.exceptions.ValidationException;
-import com.sixsq.slipstream.persistence.ImageModule;
-import com.sixsq.slipstream.persistence.ModuleParameter;
-import com.sixsq.slipstream.persistence.Run;
-import com.sixsq.slipstream.persistence.RunType;
-import com.sixsq.slipstream.persistence.ServiceConfigurationParameter;
-import com.sixsq.slipstream.persistence.User;
-import com.sixsq.slipstream.persistence.UserParameter;
+import java.util.Collection;
+import java.util.Map;
+import java.util.Properties;
+import java.util.logging.Logger;
 
 
 public class OpenStackConnector extends
@@ -215,6 +203,7 @@ public class OpenStackConnector extends
 		ComputeServiceContext csContext = ContextBuilder.newBuilder(getJcloudsDriverName())
 			//.endpoint(getEndpoint(user))
 			//.modules(modules)
+            .apiVersion("v2.0")
 			.credentials(getKey(user), getSecret(user))
 			.overrides(overrides).buildView(ComputeServiceContext.class);
 		
