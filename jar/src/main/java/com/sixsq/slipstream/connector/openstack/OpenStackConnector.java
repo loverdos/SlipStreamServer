@@ -370,12 +370,28 @@ public class OpenStackConnector extends
 			if (instance.getId().equals(instanceId)) {
 				Multimap<String, Address> addresses = instance.getAddresses();
 
-				if (addresses.containsKey("public"))
-					return addresses.get("public").iterator().next().getAddr();
-				if (addresses.containsKey("private"))
-					return addresses.get("private").iterator().next().getAddr();
+                if (instance.getId().equals(instanceId)) {
+                    if(addresses.size() > 0) {
+                        if (addresses.containsKey("public")) {
+                            final String addr = addresses.get("public").iterator().next().getAddr();
+                            return addr;
+                        }
+                        else if (addresses.containsKey("private")) {
+                            final String addr = addresses.get("private").iterator().next().getAddr();
+                            return addr;
+                        }
+                        else {
+                            final String instanceNetworkID = addresses.keySet().iterator().next();
+                            final Collection<Address> instanceAddresses = addresses.get(instanceNetworkID);
+                            if(instanceAddresses.size() > 0) {
+                                final String addr = instanceAddresses.iterator().next().getAddr();
+                                return addr;
+                            }
+                        }
+                    }
 
-				break;
+                    break;
+                }
 			}
 		}
 
