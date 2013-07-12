@@ -41,7 +41,6 @@ import org.jclouds.openstack.nova.v2_0.options.CreateServerOptions;
 import org.jclouds.openstack.v2_0.domain.Resource;
 import org.jclouds.rest.RestContext;
 
-import java.util.Collection;
 import java.util.Map;
 import java.util.Properties;
 import java.util.logging.Logger;
@@ -194,6 +193,7 @@ public class OpenStackConnector extends
 		overrides.setProperty(Constants.PROPERTY_ENDPOINT, user.getParameterValue(constructKey(OpenStackUserParametersFactory.KEYSTONE_URL),""));
 		overrides.setProperty(Constants.PROPERTY_RELAX_HOSTNAME, "true");
 		overrides.setProperty(Constants.PROPERTY_TRUST_ALL_CERTS, "true");
+		overrides.setProperty(Constants.PROPERTY_API_VERSION, "v2.0");
 		overrides.setProperty(KeystoneProperties.CREDENTIAL_TYPE, CredentialTypes.PASSWORD_CREDENTIALS);
 		overrides.setProperty(KeystoneProperties.REQUIRES_TENANT, "true");
 		overrides.setProperty(KeystoneProperties.TENANT_NAME, user.getParameterValue(constructKey(OpenStackUserParametersFactory.TENANT_NAME), ""));
@@ -203,7 +203,6 @@ public class OpenStackConnector extends
 		ComputeServiceContext csContext = ContextBuilder.newBuilder(getJcloudsDriverName())
 			//.endpoint(getEndpoint(user))
 			//.modules(modules)
-            .apiVersion("v2.0")
 			.credentials(getKey(user), getSecret(user))
 			.overrides(overrides).buildView(ComputeServiceContext.class);
 		
