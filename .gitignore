@@ -4,3 +4,6 @@ target
 slipstreamdb.*
 war/.classpath
 bin
+.idea/
+*.iml
+
