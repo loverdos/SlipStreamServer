@@ -20,11 +20,14 @@ package com.sixsq.slipstream.run;
  * -=================================================================-
  */
 
-import java.util.HashSet;
-import java.util.Map;
-
-import javax.persistence.EntityManager;
-
+import com.sixsq.slipstream.configuration.Configuration;
+import com.sixsq.slipstream.connector.Connector;
+import com.sixsq.slipstream.connector.ConnectorFactory;
+import com.sixsq.slipstream.exceptions.*;
+import com.sixsq.slipstream.persistence.*;
+import com.sixsq.slipstream.util.HtmlUtil;
+import com.sixsq.slipstream.util.RequestUtil;
+import com.sixsq.slipstream.util.SerializationUtil;
 import org.restlet.Request;
 import org.restlet.data.MediaType;
 import org.restlet.data.Status;
@@ -35,22 +38,9 @@ import org.restlet.resource.Get;
 import org.restlet.resource.ResourceException;
 import org.restlet.resource.ServerResource;
 
-import com.sixsq.slipstream.configuration.Configuration;
-import com.sixsq.slipstream.connector.Connector;
-import com.sixsq.slipstream.connector.ConnectorFactory;
-import com.sixsq.slipstream.exceptions.ConfigurationException;
-import com.sixsq.slipstream.exceptions.NotFoundException;
-import com.sixsq.slipstream.exceptions.SlipStreamClientException;
-import com.sixsq.slipstream.exceptions.SlipStreamException;
-import com.sixsq.slipstream.exceptions.ValidationException;
-import com.sixsq.slipstream.persistence.Module;
-import com.sixsq.slipstream.persistence.ModuleCategory;
-import com.sixsq.slipstream.persistence.PersistenceUtil;
-import com.sixsq.slipstream.persistence.Run;
-import com.sixsq.slipstream.persistence.User;
-import com.sixsq.slipstream.util.HtmlUtil;
-import com.sixsq.slipstream.util.RequestUtil;
-import com.sixsq.slipstream.util.SerializationUtil;
+import javax.persistence.EntityManager;
+import java.util.HashSet;
+import java.util.Map;
 
 public class RunResource extends ServerResource {
 
@@ -193,8 +183,12 @@ public class RunResource extends ServerResource {
 			e.printStackTrace();
 			throw (new ResourceException(Status.SERVER_ERROR_INTERNAL, e));
 		} catch (ValidationException e) {
+            e.printStackTrace();
 			throw (new ResourceException(Status.CLIENT_ERROR_CONFLICT, e));
-		}
+		} catch(ResourceException e) {
+            e.printStackTrace();
+            throw e;
+        }
 
 		em.close();
 	}
