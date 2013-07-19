@@ -139,8 +139,13 @@ public class OpenStackConnector extends
 		for (String instanceId : getCloudNodeInstanceIds(run)) {
 			if (instanceId == null)
 				continue;
-			client.getServerApiForZone(region).delete(instanceId);
-		}
+            try {
+                client.getServerApiForZone(region).delete(instanceId);
+            }
+            catch(Exception e) {
+                throw new SlipStreamException(String.format("Deleting server %s", instanceId), e);
+            }
+        }
 
 	}
 
