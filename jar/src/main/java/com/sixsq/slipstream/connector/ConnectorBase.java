@@ -96,22 +96,38 @@ public abstract class ConnectorBase implements Connector {
 		return ConnectorFactory.getCurrentConnector(user).getCredentials(user);
 	}
 
-	protected String getImageId(Run run)
-			throws SlipStreamClientException, ConfigurationException {
+	protected String getImageId(Run run, User user)
+			throws SlipStreamClientException, ConfigurationException,
+			ServerExecutionEnginePluginException {
 
 		String imageId;
 
 		if (run.getType() == RunType.Orchestration) {
-			imageId = getOrchestratorImageId();
+			imageId = getOrchestratorImageId(user);
 		} else {
 			imageId = ((ImageModule) run.getModule()).extractBaseImageId(run
-	                   .getCloudServiceName());
+						.getCloudServiceName());
 		}
 		return imageId;
 	}
+	
+	protected String getOrchestratorImageId(User user)
+			throws ValidationException, ServerExecutionEnginePluginException {
+		return getCloudParameterValue(user,
+				UserParametersFactoryBase.ORCHESTRATOR_IMAGEID_PARAMETER_NAME);
+	}
 
-	abstract protected String getOrchestratorImageId()
-			throws ConfigurationException, ValidationException;
+	
+	protected String getCloudParameterValue(User user, String paramName)
+			throws ServerExecutionEnginePluginException, ValidationException {
+		String qualifiedParamName = constructKey(paramName);
+		String paramValue = user.getParameterValue(qualifiedParamName, null);
+		if (paramValue == null) {
+			throw (new ServerExecutionEnginePluginException(
+					"Missing parameter '" + qualifiedParamName + "'."));
+		}
+		return paramValue;
+	}	
 
 	protected String getDefaultCloudServiceName(User user)
 			throws ValidationException {
@@ -286,9 +302,7 @@ public abstract class ConnectorBase implements Connector {
 	}
 
 	protected String getPrivateSshKeyFileName() {
-		// TODO: Change the way to get private key
-		String publicSshKeyFile = Configuration.getInstance().getProperty("cloud.connector.security.publicsshkey");
-		String privateSshKeyFile = publicSshKeyFile.substring(0, publicSshKeyFile.length() - 4);
+		String privateSshKeyFile = Configuration.getInstance().getProperty("cloud.connector.orchestrator.privatesshkey");
 		return privateSshKeyFile;
 	}
 	
@@ -309,7 +323,7 @@ public abstract class ConnectorBase implements Connector {
 			publicSshKey = tempSshKeyFile.getPath();
 		} else {
 			publicSshKey = Configuration.getInstance().getProperty(
-					"cloud.connector.security.publicsshkey");
+					"cloud.connector.orchestrator.publicsshkey");
 		}
 		return publicSshKey;
 	}
@@ -338,7 +352,7 @@ public abstract class ConnectorBase implements Connector {
 			String cloudService = run
 					.getRuntimeParameterValueIgnoreAbort(cloudServiceKey);
 
-			if (id != null
+			if (id != null && !id.equals("")
 					&& this.getConnectorInstanceName().equals(cloudService)) {
 				ids.add(id);
 			}
@@ -451,7 +465,7 @@ public abstract class ConnectorBase implements Connector {
 	private String getOrchestratorImageLoginUsername()
 			throws ConfigurationException, ValidationException {
 		return Configuration.getInstance().getRequiredProperty(
-				constructKey("cloud.connector.orchestrator.ssh.username"));
+				constructKey("orchestrator.ssh.username"));
 	}
 
 	private String getMachineImageLoginUsername(Run run)
@@ -478,7 +492,7 @@ public abstract class ConnectorBase implements Connector {
 	private String getOrchestratorImageLoginPassword()
 			throws ConfigurationException, ValidationException {
 		return Configuration.getInstance().getRequiredProperty(
-				constructKey("cloud.connector.orchestrator.ssh.password"));
+				constructKey("orchestrator.ssh.password"));
 	}
 
 	private String getMachineImageLoginPassword(Run run)
@@ -495,6 +509,6 @@ public abstract class ConnectorBase implements Connector {
 	}
 	
 	protected String getEndpoint(User user) {
-		return user.getParameter(getConnectorInstanceName() + ".endpoint").getValue();
+		return user.getParameter(getConnectorInstanceName() + "." + UserParametersFactoryBase.ENDPOINT_PARAMETER_NAME).getValue();
 	}
 }
