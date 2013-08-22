@@ -58,6 +58,8 @@ public class SynnefoConnector extends OpenStackConnector {
     @Override
     protected void updateContextBuilderPropertiesOverrides(User user, Properties overrides) throws ValidationException {
         super.updateContextBuilderPropertiesOverrides(user, overrides);
+
+        // TODO Obtain the version from some user-configurable property
         overrides.setProperty(Constants.PROPERTY_API_VERSION, "v2.0");
     }
 
