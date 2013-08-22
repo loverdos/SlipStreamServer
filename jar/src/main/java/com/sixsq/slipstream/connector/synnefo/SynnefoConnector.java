@@ -1,15 +1,18 @@
 package com.sixsq.slipstream.connector.synnefo;
 
 import com.google.common.collect.FluentIterable;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Multimap;
 import com.sixsq.slipstream.connector.Connector;
 import com.sixsq.slipstream.connector.openstack.OpenStackConnector;
 import com.sixsq.slipstream.exceptions.ValidationException;
 import com.sixsq.slipstream.persistence.User;
 import org.jclouds.Constants;
+import org.jclouds.logging.slf4j.config.SLF4JLoggingModule;
 import org.jclouds.openstack.nova.v2_0.NovaApi;
 import org.jclouds.openstack.nova.v2_0.domain.Address;
 import org.jclouds.openstack.nova.v2_0.domain.Server;
+import org.jclouds.sshj.config.SshjSshClientModule;
 
 import java.util.Collection;
 import java.util.Properties;
@@ -42,6 +45,14 @@ public class SynnefoConnector extends OpenStackConnector {
 
     public String getJcloudsDriverName() {
         return OpenStackConnector.JCLOUDS_DRIVER_NAME;
+    }
+
+    @Override
+    protected Iterable<com.google.inject.Module> getContextBuilderModules() {
+        return ImmutableSet.<com.google.inject.Module>of(
+            new SLF4JLoggingModule(),
+            new SshjSshClientModule()
+        );
     }
 
     @Override
