@@ -16,7 +16,7 @@ import java.util.Properties;
 import java.util.logging.Logger;
 
 /**
- * Connector for synnefo.org. Presented as a subclass of OpenStackConnector, as requested.
+ * Connector for synnefo.org.
  */
 public class SynnefoConnector extends OpenStackConnector {
     private static Logger log = Logger.getLogger(SynnefoConnector.class.toString());
