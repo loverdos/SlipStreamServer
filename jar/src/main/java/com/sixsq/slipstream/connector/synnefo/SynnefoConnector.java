@@ -23,7 +23,7 @@ public class SynnefoConnector extends OpenStackConnector {
     }
 
     public Connector copy(){
-        return new OpenStackConnector(getConnectorInstanceName());
+        return new SynnefoConnector(getConnectorInstanceName());
     }
 
     public String getCloudServiceName() {
