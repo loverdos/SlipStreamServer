@@ -312,7 +312,7 @@ public class OpenStackConnector extends
 		closeContext();
 	}
 
-	private String createContextualizationData(Run run, User user,
+	protected String createContextualizationData(Run run, User user,
 			Configuration configuration) throws ConfigurationException,
 			ServerExecutionEnginePluginException, SlipStreamClientException {
 
@@ -359,7 +359,7 @@ public class OpenStackConnector extends
 		return userData;
 	}
 
-	private String getFlavorId(NovaApi client, String region, String name)
+	protected String getFlavorId(NovaApi client, String region, String name)
 			throws ConfigurationException, ServerExecutionEnginePluginException {
 
 		String flavorName = name;
