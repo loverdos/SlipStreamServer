@@ -312,9 +312,7 @@ public class OpenStackConnector extends
 		closeContext();
 	}
 
-	// TODO Use cloud-init to put script in the virtual machine. So the base
-	// image only need to have cloudinit to work with SlipStream
-	private String createContextualizationData(Run run, User user,
+	protected String createContextualizationData(Run run, User user,
 			Configuration configuration) throws ConfigurationException,
 			ServerExecutionEnginePluginException, SlipStreamClientException {
 
@@ -360,7 +358,7 @@ public class OpenStackConnector extends
 		return userData;
 	}
 
-	private String getFlavorId(NovaApi client, String region, String name)
+	protected String getFlavorId(NovaApi client, String region, String name)
 			throws ConfigurationException, ServerExecutionEnginePluginException {
 
 		String flavorName = name;
