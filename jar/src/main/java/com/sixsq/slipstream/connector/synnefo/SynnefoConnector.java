@@ -108,7 +108,12 @@ public class SynnefoConnector extends OpenStackConnector {
     // We use the same structure of the parent method and just change the details that are different
     // for Synnefo. In particular, we do not rely on the KeyPair OpenStack extension, but run scripts
     // via SSH directly.
-    // NOTE For now, this assumes Ubuntu Server @ Okeanos, which gives as user "user" and not "root".
+    // NOTE From the currently provided Okeanos images, we cannot login to Ubuntu as root.
+    //      This means that we must rely on a custom image, from which we can spawn Ubuntu servers
+    //      for use by SlipStream.
+    //      Using kamaki, after we create the custom image by just copying the official
+    //      Ubuntu Server one, we enable root:
+    //        $ kamaki image compute properties set CUSTOM_IMAGE_ID users="user root"
     @Override
     protected void launchDeployment(Run run, User user) throws ServerExecutionEnginePluginException, ClientExecutionEnginePluginException, InvalidElementException, ValidationException {
         Properties overrides = new Properties();
