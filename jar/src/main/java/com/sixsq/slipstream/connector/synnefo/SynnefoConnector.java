@@ -6,7 +6,6 @@ import com.google.common.collect.Multimap;
 import com.sixsq.slipstream.configuration.Configuration;
 import com.sixsq.slipstream.connector.Connector;
 import com.sixsq.slipstream.connector.openstack.OpenStackConnector;
-import com.sixsq.slipstream.connector.openstack.OpenStackImageParametersFactory;
 import com.sixsq.slipstream.connector.openstack.OpenStackUserParametersFactory;
 import com.sixsq.slipstream.exceptions.*;
 import com.sixsq.slipstream.persistence.ImageModule;
@@ -108,7 +107,12 @@ public class SynnefoConnector extends OpenStackConnector {
     // We use the same structure of the parent method and just change the details that are different
     // for Synnefo. In particular, we do not rely on the KeyPair OpenStack extension, but run scripts
     // via SSH directly.
-    // NOTE For now, this assumes Ubuntu Server @ Okeanos, which gives as user "user" and not "root".
+    // NOTE From the currently provided Okeanos images, we cannot login to Ubuntu as root.
+    //      This means that we must rely on a custom image, from which we can spawn Ubuntu servers
+    //      for use by SlipStream.
+    //      Using kamaki, after we create the custom image by just copying the official
+    //      Ubuntu Server one, we enable root:
+    //        $ kamaki image compute properties set CUSTOM_IMAGE_ID users="user root"
     @Override
     protected void launchDeployment(Run run, User user) throws ServerExecutionEnginePluginException, ClientExecutionEnginePluginException, InvalidElementException, ValidationException {
         Properties overrides = new Properties();
@@ -120,17 +124,17 @@ public class SynnefoConnector extends OpenStackConnector {
             ImageModule imageModule = (run.getType() == RunType.Machine) ? ImageModule
                 .load(run.getModuleResourceUrl()) : null;
 
-            String region = configuration.getRequiredProperty(constructKey(OpenStackUserParametersFactory.SERVICE_REGION_PARAMETER_NAME));
-            String imageId = (run.getType() == RunType.Orchestration) ? getOrchestratorImageId(user) : getImageId(run, user);
+            String region = configuration.getRequiredProperty(constructKey("cloud.connector.service.region"));
+            String imageId = (run.getType() == RunType.Orchestration) ? getOrchestratorImageId() : getImageId(run);
 
             String instanceName = (run.getType() == RunType.Orchestration) ? getOrchestratorName(run) : imageModule.getShortName();
 
             String flavorName = (run.getType() == RunType.Orchestration) ? configuration
-                .getRequiredProperty(constructKey(OpenStackUserParametersFactory.SERVICE_REGION_PARAMETER_NAME))
+                .getRequiredProperty(constructKey("cloud.connector.orchestrator.instance.type"))
                 : getInstanceType(imageModule);
             String flavorId = getFlavorId(client, region, flavorName);
             String[] securityGroups = (run.getType() == RunType.Orchestration) ? "default".split(",")
-                : getParameterValue(OpenStackImageParametersFactory.SECURITY_GROUP, imageModule).split(",");
+                : user.getParameterValue(constructKey(OpenStackUserParametersFactory.SECURITY_GROUP), "").split(",");
 
             String instanceData = "\n\nStarting instance on region '" + region + "'\n";
             instanceData += "Image id: " + imageId + "\n";
