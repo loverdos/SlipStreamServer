@@ -13,14 +13,22 @@ import com.sixsq.slipstream.persistence.Run;
 import com.sixsq.slipstream.persistence.RunType;
 import com.sixsq.slipstream.persistence.User;
 import org.jclouds.Constants;
+import org.jclouds.compute.Utils;
+import org.jclouds.compute.domain.ExecResponse;
+import org.jclouds.compute.domain.NodeMetadata;
+import org.jclouds.compute.domain.NodeMetadataBuilder;
+import org.jclouds.domain.Credentials;
+import org.jclouds.domain.LoginCredentials;
 import org.jclouds.logging.slf4j.config.SLF4JLoggingModule;
 import org.jclouds.openstack.nova.v2_0.NovaApi;
 import org.jclouds.openstack.nova.v2_0.domain.Address;
 import org.jclouds.openstack.nova.v2_0.domain.Server;
 import org.jclouds.openstack.nova.v2_0.domain.ServerCreated;
 import org.jclouds.openstack.nova.v2_0.options.CreateServerOptions;
+import org.jclouds.ssh.SshClient;
 import org.jclouds.sshj.config.SshjSshClientModule;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Properties;
 import java.util.logging.Logger;
@@ -32,6 +40,8 @@ public class SynnefoConnector extends OpenStackConnector {
     private static Logger log = Logger.getLogger(SynnefoConnector.class.toString());
 
     public static final String DEFAULT_CLOUD_SERVICE_NAME = "okeanos";
+
+    // TODO Change this accordingly whenwe have enough feedback from sixsq
     public static final String CLOUDCONNECTOR_PYTHON_MODULENAME = "slipstream.cloudconnectors.openstack.OpenStackClientCloud";
 
     public SynnefoConnector() {
@@ -115,6 +125,7 @@ public class SynnefoConnector extends OpenStackConnector {
     //        $ kamaki image compute properties set CUSTOM_IMAGE_ID users="user root"
     @Override
     protected void launchDeployment(Run run, User user) throws ServerExecutionEnginePluginException, ClientExecutionEnginePluginException, InvalidElementException, ValidationException {
+        System.out.println("launchDeployment()");
         Properties overrides = new Properties();
         NovaApi client = getClient(user, overrides);
 
@@ -125,16 +136,22 @@ public class SynnefoConnector extends OpenStackConnector {
                 .load(run.getModuleResourceUrl()) : null;
 
             String region = configuration.getRequiredProperty(constructKey("cloud.connector.service.region"));
+            System.out.println("region = " + region);
             String imageId = (run.getType() == RunType.Orchestration) ? getOrchestratorImageId() : getImageId(run);
+            System.out.println("imageId = " + imageId);
 
             String instanceName = (run.getType() == RunType.Orchestration) ? getOrchestratorName(run) : imageModule.getShortName();
+            System.out.println("instanceName = " + instanceName);
 
             String flavorName = (run.getType() == RunType.Orchestration) ? configuration
                 .getRequiredProperty(constructKey("cloud.connector.orchestrator.instance.type"))
                 : getInstanceType(imageModule);
+            System.out.println("flavorName = " + flavorName);
             String flavorId = getFlavorId(client, region, flavorName);
+            System.out.println("flavorId = " + flavorId);
             String[] securityGroups = (run.getType() == RunType.Orchestration) ? "default".split(",")
                 : user.getParameterValue(constructKey(OpenStackUserParametersFactory.SECURITY_GROUP), "").split(",");
+            System.out.println("securityGroups = " + Arrays.toString(securityGroups));
 
             String instanceData = "\n\nStarting instance on region '" + region + "'\n";
             instanceData += "Image id: " + imageId + "\n";
@@ -153,18 +170,20 @@ public class SynnefoConnector extends OpenStackConnector {
                 throw (new ServerExecutionEnginePluginException(e.getMessage()));
             }
 
-            String instanceId = server.getId();
+            final String instanceId = server.getId();
             String ipAddress = "";
 
             while(ipAddress.isEmpty()) {
                 try {
-                    Thread.sleep(1000);
+                    System.out.println("ipAddress is empty, sleeping...");
+                    Thread.sleep(3000);
                 }
-                catch(InterruptedException e) {
-
+                catch(InterruptedException ignored) {
                 }
                 ipAddress = getIpAddress(client, region, instanceId);
             }
+
+            System.out.println("ipAddress = " + ipAddress);
 
             updateInstanceIdAndIpOnRun(run, instanceId, ipAddress);
 
@@ -173,7 +192,27 @@ public class SynnefoConnector extends OpenStackConnector {
             }
 
             // Now run the initial script for the Orchestration VM
-            final String initialScript = super.createContextualizationData(run, user, configuration);
+            System.out.println("====== INITIAL SCRIPT ========");
+            final String orchestratorScript = super.createContextualizationData(run, user, configuration);
+            final String nodeUsername = "root";
+            final String nodePassword = server.getAdminPass();
+            final String nodeId = String.format("%s/%s", region, instanceId);
+            System.out.println("nodeId = " + nodeId);
+            final NodeMetadata baseNodeMetadata = getComputeService().getNodeMetadata(nodeId);
+            final NodeMetadata nodeMetadata = NodeMetadataBuilder.fromNodeMetadata(baseNodeMetadata).
+                credentials(LoginCredentials.fromCredentials(new Credentials(nodeUsername, nodePassword))).
+                build();
+            final Utils sshUtils = getComputeServiceContext().getUtils();
+            final SshClient sshClient = sshUtils.sshForNode().apply(nodeMetadata);
+            System.out.println("sshClient = " + sshClient);
+            try {
+                System.out.println("Executing script");
+                ExecResponse response = sshClient.exec(orchestratorScript);
+                System.out.println("response = " + response);
+            } finally {
+                try { if(sshClient != null) sshClient.disconnect(); }
+                catch(Exception e) { e.printStackTrace(); }
+            }
         }
         catch(com.google.common.util.concurrent.UncheckedExecutionException e) {
             e.printStackTrace();

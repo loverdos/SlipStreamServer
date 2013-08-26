@@ -31,6 +31,7 @@ import com.sixsq.slipstream.exceptions.*;
 import com.sixsq.slipstream.persistence.*;
 import org.jclouds.Constants;
 import org.jclouds.ContextBuilder;
+import org.jclouds.compute.ComputeService;
 import org.jclouds.compute.ComputeServiceContext;
 import org.jclouds.openstack.keystone.v2_0.config.CredentialTypes;
 import org.jclouds.openstack.keystone.v2_0.config.KeystoneProperties;
@@ -57,10 +58,13 @@ public class OpenStackConnector extends
 	// TODO Move this property to the superclass (JCloudsConnectorBase)
 	private RestContext<NovaApi, NovaAsyncApi> context;
 
+    private ComputeServiceContext computeServiceContext;
+
 	public static final String CLOUD_SERVICE_NAME = "openstack";
 	public static final String JCLOUDS_DRIVER_NAME = "openstack-nova";
 
-	public OpenStackConnector() {
+
+    public OpenStackConnector() {
 		this(CLOUD_SERVICE_NAME);
 	}
 	
@@ -184,16 +188,15 @@ public class OpenStackConnector extends
 
 	// TODO Move this method to the superclass (JCloudsConnectorBase)
 	protected NovaApi getClient(User user) throws InvalidElementException, ValidationException {
-		return getClient(user, null);
+		return getClient(user, new Properties());
 	}
 
 	protected NovaApi getClient(User user, Properties overrides) throws InvalidElementException, ValidationException {
         updateContextBuilderPropertiesOverrides(user, overrides);
 
         final ContextBuilder contextBuilder = updateContextBuilder(newContextBuilder(), user, overrides);
-        final ComputeServiceContext csContext = contextBuilder.buildView(ComputeServiceContext.class);
-
-		this.context = csContext.unwrap();
+        this.computeServiceContext = contextBuilder.buildView(ComputeServiceContext.class);
+		this.context = this.computeServiceContext.unwrap();
 		return this.context.getApi();
 	}
 
@@ -215,7 +218,7 @@ public class OpenStackConnector extends
 
     protected void updateContextBuilderPropertiesOverrides(User user, Properties overrides) throws ValidationException {
         if (overrides == null) {
-            overrides = new Properties();
+            throw new NullPointerException("overrides");
         }
 
         overrides.setProperty(Constants.PROPERTY_ENDPOINT, user.getParameterValue(constructKey(OpenStackUserParametersFactory.KEYSTONE_URL),""));
@@ -230,6 +233,7 @@ public class OpenStackConnector extends
     // TODO Move this method to the superclass (JCloudsConnectorBase)
 	protected void closeContext() {
 		context.close();
+        computeServiceContext.close();
 	}
 
 	protected void launchDeployment(Run run, User user)
@@ -358,11 +362,10 @@ public class OpenStackConnector extends
 		return userData;
 	}
 
-	protected String getFlavorId(NovaApi client, String region, String name)
+	protected String getFlavorId(NovaApi client, String region, String flavorName)
 			throws ConfigurationException, ServerExecutionEnginePluginException {
 
-		String flavorName = name;
-		String flavorListStr = "";
+        String flavorListStr = "";
 
 		FluentIterable<? extends Resource> flavors = client.getFlavorApiForZone(region).list().concat();
 		for (Resource flavor : flavors) {
@@ -395,11 +398,15 @@ public class OpenStackConnector extends
 		return "";
 	}
 
+    protected ComputeServiceContext getComputeServiceContext() {
+        return computeServiceContext;
+    }
+
     protected RestContext<NovaApi, NovaAsyncApi> getContext() {
         return context;
     }
 
-    protected void setContext(RestContext<NovaApi, NovaAsyncApi> context) {
-        this.context = context;
+    protected ComputeService getComputeService() {
+        return getComputeServiceContext().getComputeService();
     }
 }
