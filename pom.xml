@@ -64,6 +64,7 @@
     <logger.filepattern>${project.build.directory}/instance/SlipStreamServer/var/log/slipstream.%g
     </logger.filepattern>
 
+    <version.jclouds>1.5.5</version.jclouds>
   </properties>
 
 	<dependencyManagement>
@@ -71,10 +72,25 @@
 			<dependency>
 				<groupId>org.jclouds</groupId>
 				<artifactId>jclouds-all</artifactId>
-				<version>1.5.5</version>
+				<version>${version.jclouds}</version>
 				<type>jar</type>
 			</dependency>
-		</dependencies>
+
+      <dependency>
+        <groupId>org.jclouds.driver</groupId>
+        <artifactId>jclouds-slf4j</artifactId>
+        <version>${version.jclouds}</version>
+        <type>jar</type>
+      </dependency>
+
+      <dependency>
+        <groupId>org.jclouds.driver</groupId>
+        <artifactId>jclouds-sshj</artifactId>
+        <version>${version.jclouds}</version>
+        <type>jar</type>
+      </dependency>
+
+    </dependencies>
 	</dependencyManagement>
 
 </project>

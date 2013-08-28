@@ -20,12 +20,16 @@ package com.sixsq.slipstream.connector.openstack;
  * -=================================================================-
  */
 
-import java.util.Map;
-import java.util.Properties;
-import java.util.logging.Logger;
-
+import com.google.common.collect.FluentIterable;
+import com.google.common.collect.Multimap;
+import com.sixsq.slipstream.configuration.Configuration;
+import com.sixsq.slipstream.connector.Credentials;
+import com.sixsq.slipstream.connector.JCloudsConnectorBase;
+import com.sixsq.slipstream.exceptions.*;
+import com.sixsq.slipstream.persistence.*;
 import org.jclouds.Constants;
 import org.jclouds.ContextBuilder;
+import org.jclouds.compute.ComputeServiceContext;
 import org.jclouds.openstack.keystone.v2_0.config.CredentialTypes;
 import org.jclouds.openstack.keystone.v2_0.config.KeystoneProperties;
 import org.jclouds.openstack.nova.v2_0.NovaApi;
@@ -37,26 +41,9 @@ import org.jclouds.openstack.nova.v2_0.options.CreateServerOptions;
 import org.jclouds.openstack.v2_0.domain.Resource;
 import org.jclouds.rest.RestContext;
 
-import org.jclouds.compute.ComputeServiceContext;
-import com.google.common.collect.FluentIterable;
-import com.google.common.collect.Multimap;
-import com.sixsq.slipstream.configuration.Configuration;
-import com.sixsq.slipstream.connector.Credentials;
-import com.sixsq.slipstream.connector.JCloudsConnectorBase;
-import com.sixsq.slipstream.exceptions.ClientExecutionEnginePluginException;
-import com.sixsq.slipstream.exceptions.ConfigurationException;
-import com.sixsq.slipstream.exceptions.InvalidElementException;
-import com.sixsq.slipstream.exceptions.ServerExecutionEnginePluginException;
-import com.sixsq.slipstream.exceptions.SlipStreamClientException;
-import com.sixsq.slipstream.exceptions.SlipStreamException;
-import com.sixsq.slipstream.exceptions.ValidationException;
-import com.sixsq.slipstream.persistence.ImageModule;
-import com.sixsq.slipstream.persistence.ModuleParameter;
-import com.sixsq.slipstream.persistence.Run;
-import com.sixsq.slipstream.persistence.RunType;
-import com.sixsq.slipstream.persistence.ServiceConfigurationParameter;
-import com.sixsq.slipstream.persistence.User;
-import com.sixsq.slipstream.persistence.UserParameter;
+import java.util.Map;
+import java.util.Properties;
+import java.util.logging.Logger;
 
 
 public class OpenStackConnector extends
@@ -66,7 +53,9 @@ public class OpenStackConnector extends
 			.toString());
 
 	// TODO Move this property to the superclass (JCloudsConnectorBase)
-	private RestContext<NovaApi, NovaAsyncApi> context;
+    protected RestContext<NovaApi, NovaAsyncApi> context;
+
+    protected ComputeServiceContext computeServiceContext;
 
 	public static final String CLOUD_SERVICE_NAME = "openstack";
 	public static final String JCLOUDS_DRIVER_NAME = "openstack-nova";
@@ -86,7 +75,7 @@ public class OpenStackConnector extends
 	public String getJcloudsDriverName() {
 		return JCLOUDS_DRIVER_NAME;
 	}
-	
+
 	@Override
 	public Run launch(Run run, User user)
 			throws SlipStreamException {
@@ -194,11 +183,11 @@ public class OpenStackConnector extends
 	}
 
 	// TODO Move this method to the superclass (JCloudsConnectorBase)
-	private NovaApi getClient(User user) throws InvalidElementException, ValidationException {
-		return getClient(user, null);
+	protected NovaApi getClient(User user) throws InvalidElementException, ValidationException {
+		return getClient(user, new Properties());
 	}
 
-	private NovaApi getClient(User user, Properties overrides)
+	protected NovaApi getClient(User user, Properties overrides)
 			throws InvalidElementException, ValidationException {		
 		if (overrides == null)
 			overrides = new Properties();
@@ -224,11 +213,11 @@ public class OpenStackConnector extends
 	}
 
 	// TODO Move this method to the superclass (JCloudsConnectorBase)
-	private void closeContext() {
+    protected void closeContext() {
 		context.close();
 	}
 
-	private void launchDeployment(Run run, User user)
+	protected void launchDeployment(Run run, User user)
 			throws ServerExecutionEnginePluginException, ClientExecutionEnginePluginException, InvalidElementException, ValidationException {
 
 		Properties overrides = new Properties();
@@ -310,7 +299,7 @@ public class OpenStackConnector extends
 
 	// TODO Use cloud-init to put script in the virtual machine. So the base
 	// image only need to have cloudinit to work with SlipStream
-	private String createContextualizationData(Run run, User user,
+	protected String createContextualizationData(Run run, User user,
 			Configuration configuration) throws ConfigurationException,
 			ServerExecutionEnginePluginException, SlipStreamClientException {
 
@@ -356,7 +345,7 @@ public class OpenStackConnector extends
 		return userData;
 	}
 
-	private String getFlavorId(NovaApi client, String region, String name)
+	protected String getFlavorId(NovaApi client, String region, String name)
 			throws ConfigurationException, ServerExecutionEnginePluginException {
 
 		String flavorName = name;
@@ -374,7 +363,7 @@ public class OpenStackConnector extends
 						+ "Supported Flavors: \n" + flavorListStr));
 	}
 
-	private String getIpAddress(NovaApi client, String region, String instanceId) {
+	protected String getIpAddress(NovaApi client, String region, String instanceId) {
 
 		FluentIterable<? extends Server> instances = client.getServerApiForZone(region).listInDetail().concat();
 		for (Server instance : instances) {
