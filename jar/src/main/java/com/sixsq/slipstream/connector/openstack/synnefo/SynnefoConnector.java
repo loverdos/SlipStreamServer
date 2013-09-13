@@ -1,5 +1,6 @@
 package com.sixsq.slipstream.connector.openstack.synnefo;
 
+import com.google.common.base.Function;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Multimap;
@@ -40,12 +41,21 @@ public class SynnefoConnector extends OpenStackConnector {
     public static final String JCLOUDS_DRIVER_NAME = "openstack-nova";
 
     public SynnefoConnector() {
-        this(CLOUD_SERVICE_NAME);
+        this(SynnefoConnector.CLOUD_SERVICE_NAME);
     }
 
     public SynnefoConnector(String instanceName) {
         super(instanceName);
     }
+
+    public String getCloudServiceName() {
+        return SynnefoConnector.CLOUD_SERVICE_NAME;
+    }
+
+    public String getJcloudsDriverName() {
+        return SynnefoConnector.JCLOUDS_DRIVER_NAME;
+    }
+
 
     protected Iterable<com.google.inject.Module> getContextBuilderModules() {
         return ImmutableSet.<com.google.inject.Module>of(
@@ -132,6 +142,61 @@ public class SynnefoConnector extends OpenStackConnector {
         return this.context.getApi();
     }
 
+    protected String createContextualizationDataPlus(
+        Run run,
+        User user,
+        Configuration configuration,
+        String extraLines
+    ) throws ConfigurationException, ServerExecutionEnginePluginException, SlipStreamClientException {
+
+        String logfilename = "orchestrator.slipstream.log";
+        String bootstrap = "/tmp/slipstream.bootstrap";
+
+        String username = user.getName();
+        String password = user.getPassword();
+        if (password == null) {
+            throw (new ServerExecutionEnginePluginException(
+                "Missing password entry in user profile"));
+        }
+
+        String userData = "#!/bin/sh -e \n";
+
+        userData += "# SlipStream contextualization script for VMs on Amazon. \n";
+        {
+            userData += "## ++ EXTRA LINES\n";
+            if(!extraLines.endsWith("\n")) extraLines += "\n";
+            userData += extraLines;
+            userData += "## -- EXTRA LINES\n";
+        }
+        userData += "export SLIPSTREAM_CLOUD=\"" + getCloudServiceName() + "\"\n";
+        userData += "export SLIPSTREAM_CONNECTOR_INSTANCE=\"" + getConnectorInstanceName() + "\"\n";
+        userData += "export SLIPSTREAM_NODENAME=\"" + getOrchestratorName(run) + "\"\n";
+        userData += "export SLIPSTREAM_DIID=\"" + run.getName() + "\"\n";
+        userData += "export SLIPSTREAM_REPORT_DIR=\"" + SLIPSTREAM_REPORT_DIR + "\"\n";
+        userData += "export SLIPSTREAM_SERVICEURL=\"" + configuration.baseUrl + "\"\n";
+        userData += "export SLIPSTREAM_BUNDLE_URL=\"" + configuration.getRequiredProperty("slipstream.update.clienturl") + "\"\n";
+        userData += "export SLIPSTREAM_BOOTSTRAP_BIN=\"" + configuration.getRequiredProperty("slipstream.update.clientbootstrapurl") + "\"\n";
+        userData += "export LIBCLOUD_BUNDLE_URL=\"" + configuration.getRequiredProperty("cloud.connector.library.libcloud.url") + "\"\n";
+        userData += "export OPENSTACK_SERVICE_TYPE=\"" + configuration.getRequiredProperty(constructKey("cloud.connector.service.type")) + "\"\n";
+        userData += "export OPENSTACK_SERVICE_NAME=\"" + configuration.getRequiredProperty(constructKey("cloud.connector.service.name")) + "\"\n";
+        userData += "export OPENSTACK_SERVICE_REGION=\"" + configuration.getRequiredProperty(constructKey("cloud.connector.service.region")) + "\"\n";
+        userData += "export SLIPSTREAM_CATEGORY=\"" + run.getCategory().toString() + "\"\n";
+        userData += "export SLIPSTREAM_USERNAME=\"" + username + "\"\n";
+        userData += "export SLIPSTREAM_COOKIE=" + getCookieForEnvironmentVariable(username) + "\n";
+        userData += "export SLIPSTREAM_VERBOSITY_LEVEL=\"" + getVerboseParameterValue(user) + "\"\n";
+
+        userData += "mkdir -p " + SLIPSTREAM_REPORT_DIR + "\n"
+            + "wget --no-check-certificate -O " + bootstrap
+            + " $SLIPSTREAM_BOOTSTRAP_BIN > " + SLIPSTREAM_REPORT_DIR + "/"
+            + logfilename + " 2>&1 " + "&& chmod 0755 " + bootstrap + "\n"
+            + bootstrap + " slipstream-orchestrator >> "
+            + SLIPSTREAM_REPORT_DIR + "/" + logfilename + " 2>&1\n";
+
+        System.out.print(userData);
+
+        return userData;
+    }
+
     // We use the same structure of the parent method and just change the details that are different
     // for Synnefo. In particular, we do not rely on the KeyPair OpenStack extension, but run scripts
     // via SSH directly.
@@ -211,21 +276,25 @@ public class SynnefoConnector extends OpenStackConnector {
             }
 
             // Now run the initial script for the Orchestration VM
-            System.out.println("++==== INITIAL SCRIPT ========");
-            final String orchestratorScript = super.createContextualizationData(run, user, configuration);
-            System.out.println("--==== INITIAL SCRIPT ========");
             final String nodeUsername = "root";
+            System.out.println("nodeUsername = " + nodeUsername);
             final String nodePassword = server.getAdminPass();
             System.out.println("nodePassword = " + nodePassword);
-
             final String nodeId = String.format("%s/%s", region, instanceId);
             System.out.println("nodeId = " + nodeId);
-            final NodeMetadata baseNodeMetadata = getComputeService().getNodeMetadata(nodeId);
-            final NodeMetadata nodeMetadata = NodeMetadataBuilder.fromNodeMetadata(baseNodeMetadata).
-                credentials(LoginCredentials.fromCredentials(new Credentials(nodeUsername, nodePassword))).
-                build();
-            final Utils sshUtils = computeServiceContext.getUtils();
-            final SshClient sshClient = sshUtils.sshForNode().apply(nodeMetadata);
+
+            System.out.println("++==== INITIAL SCRIPT ========");
+            final String extraLines = String.format(
+                "export ORCHESTRATOR_VM_ROOT_PASSWORD=\"%s\"\n" +
+                "export ORCHESTRATOR_VM_ID=\"%s\"\n",
+                nodePassword,
+                nodeId
+            );
+            final String orchestratorScript = createContextualizationDataPlus(run, user, configuration, extraLines);
+            System.out.println("--==== INITIAL SCRIPT ========");
+
+
+            final SshClient sshClient = getSSHClient(nodeId, nodeUsername, nodePassword);
             System.out.println("sshClient = " + sshClient);
             try {
                 System.out.println("Executing script");
@@ -261,6 +330,32 @@ public class SynnefoConnector extends OpenStackConnector {
         finally {
             closeContext();
         }
+    }
+
+    protected SshClient getSSHClient(String nodeId, String nodeUsername, String nodePassword) {
+        final NodeMetadata baseNodeMetadata = getComputeService().getNodeMetadata(nodeId);
+        final NodeMetadata nodeMetadata = NodeMetadataBuilder.fromNodeMetadata(baseNodeMetadata).
+            credentials(LoginCredentials.fromCredentials(new Credentials(nodeUsername, nodePassword))).
+            build();
+        final Utils sshUtils = computeServiceContext.getUtils();
+
+        final Function<NodeMetadata,SshClient> sshClientFunction = sshUtils.sshForNode();
+        final SshClient sshClient = sshClientFunction.apply(nodeMetadata);
+
+//        SshjSshClientModule sshModule = new SshjSshClientModule();
+//        Injector injector = Guice.createInjector(sshModule, new AbstractModule() {
+//            @Override
+//            protected void configure() {
+//                bind(int.class).
+//                    annotatedWith(Names.named("jclouds.ssh.max-retries")).
+//                    toInstance(0);
+//
+//                bind(int.class).
+//                    annotatedWith(Names.named("jclouds.ssh.retry-auth")).
+//                    toInstance(0);
+//            }
+//        });
+        return sshClient;
     }
 
     // Copied from ConnectorBase to inject some debugging
