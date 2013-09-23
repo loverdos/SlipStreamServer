@@ -69,6 +69,8 @@ public class SynnefoConnector extends OpenStackConnector {
     }
 
     protected ContextBuilder updateContextBuilder(ContextBuilder contextBuilder, User user, Properties overrides) {
+        overrides.put("jclouds.ssh.max-retries", "1");
+
         return contextBuilder
             .modules(getContextBuilderModules())
             .credentials(getKey(user), getSecret(user))
@@ -161,7 +163,7 @@ public class SynnefoConnector extends OpenStackConnector {
 
         String userData = "#!/bin/sh -e \n";
 
-        userData += "# SlipStream contextualization script for VMs on Amazon. \n";
+        userData += "# SlipStream contextualization script for ~Okeanos\n";
         {
             userData += "## ++ EXTRA LINES\n";
             if(!extraLines.endsWith("\n")) extraLines += "\n";
@@ -297,7 +299,8 @@ public class SynnefoConnector extends OpenStackConnector {
             final SshClient sshClient = getSSHClient(nodeId, nodeUsername, nodePassword);
             System.out.println("sshClient = " + sshClient);
             try {
-                System.out.println("Executing script");
+                sshClient.connect();
+                System.out.println("!!! Executing script");
                 ExecResponse response = sshClient.exec(orchestratorScript);
                 System.out.println("response = " + response);
             }
