@@ -418,7 +418,7 @@ public class OkeanosConnector extends OpenStackConnector {
 
         Configuration configuration = Configuration.getInstance();
         String region = configuration
-            .getRequiredProperty(constructKey("cloud.connector.service.region"));
+            .getRequiredProperty(constructKey(OpenStackUserParametersFactory.SERVICE_REGION_PARAMETER_NAME));
         System.out.println("region = " + region);
 
         final List<String> cloudNodeInstanceIds = getCloudNodeInstanceIds(run);
