@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<!DOCTYPE Configure PUBLIC "-//Jetty//Configure//EN" "http://www.eclipse.org/jetty/configure_9_0.dtd">
+ 
+<Configure id="Server" class="org.eclipse.jetty.server.Server">
+  <Call id="logMgr" class="java.util.logging.LogManager" name="getLogManager">
+    <Call name="readConfiguration">
+      <Arg class="java.io.InputStream">
+        <New class="java.io.FileInputStream">
+          <Arg class="java.lang.String"><Property name="jetty.home" default="."/>/resources/logging.properties</Arg>
+        </New>
+      </Arg>
+    </Call>
+  </Call>
+</Configure>
