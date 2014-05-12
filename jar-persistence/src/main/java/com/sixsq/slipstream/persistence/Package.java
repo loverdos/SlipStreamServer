@@ -9,9 +9,9 @@ package com.sixsq.slipstream.persistence;
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -20,12 +20,12 @@ package com.sixsq.slipstream.persistence;
  * -=================================================================-
  */
 
-
 import java.io.Serializable;
 
 import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.Id;
+import javax.persistence.ManyToOne;
 
 import org.simpleframework.xml.Attribute;
 
@@ -41,10 +41,15 @@ public class Package implements Serializable {
 
 	@Attribute
 	private String name;
+
 	@Attribute(required = false)
 	private String repository;
+
 	@Attribute(required = false, name = "key")
 	private String key_;
+
+	@ManyToOne
+	private ImageModule module;
 
 	@SuppressWarnings("unused")
 	private Package() {
@@ -85,6 +90,14 @@ public class Package implements Serializable {
 		this.repository = repository;
 	}
 
+	public ImageModule getModule() {
+		return module;
+	}
+
+	public void setModule(ImageModule module) {
+		this.module = module;
+	}
+
 	public String getKey() {
 		return key_;
 	}
@@ -96,7 +109,7 @@ public class Package implements Serializable {
 	public Package copy() throws ValidationException {
 		return new Package(getName(), getRepository(), getKey());
 	}
-	
+
 	@Override
 	public int hashCode() {
 		if(name == null) {
@@ -104,7 +117,7 @@ public class Package implements Serializable {
 		}
 	    return name.hashCode();
 	}
-	
+
     @Override
 	public boolean equals(Object o) {
 		if(o instanceof Package) {

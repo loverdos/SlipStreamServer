@@ -20,7 +20,8 @@ package com.sixsq.slipstream.user;
  * -=================================================================-
  */
 
-import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.restlet.data.Form;
 
@@ -36,6 +37,7 @@ import com.sixsq.slipstream.persistence.User;
 public abstract class FormProcessor<S extends Parameterized<S, T>, T extends Parameter<S>> {
 
 	private S parametrized;
+	private Map<String, T> existingParameters;
 	private User user;
 	private Form form;
 
@@ -92,9 +94,9 @@ public abstract class FormProcessor<S extends Parameterized<S, T>, T extends Par
 		// - parameter--[id]--description
 		// - parameter--[id]--value
 		// ...
-		getParametrized().setParameters(new HashMap<String, T>());
+		existingParameters = new ConcurrentHashMap<String, T>(getParametrized().getParameters());
+		getParametrized().getParameters().clear();
 		for (String paramName : form.getNames().toArray(new String[0])) {
-
 			if (isParameterName(paramName)) {
 				processSingleParameter(form, paramName);
 			}
@@ -115,11 +117,11 @@ public abstract class FormProcessor<S extends Parameterized<S, T>, T extends Par
 
 		String value = extractValue(form, genericPart);
 
-		if(!shouldProcess(name)) {
+		if (!shouldProcess(name)) {
 			return;
 		}
-	 	
-		boolean exists = getParametrized().getParameters().containsKey(name);
+		boolean exists = (name == null) ? false : existingParameters
+				.containsKey(name);
 		if (exists) {
 			setExistingParameter(name, value);
 		} else {
@@ -128,19 +130,29 @@ public abstract class FormProcessor<S extends Parameterized<S, T>, T extends Par
 
 	}
 
-	protected boolean shouldProcess(String paramName) throws ValidationException {
+	protected boolean shouldProcess(String paramName)
+			throws ValidationException {
 		return true;
 	}
 
 	protected void setExistingParameter(String name, String value)
 			throws ValidationException {
 		T parameter;
-		parameter = getParametrized().getParameter(name);
+		parameter = existingParameters.get(name);
 		boolean overwrite = shouldSetValue(parameter, value);
 
 		if (overwrite) {
-			parameter.setValue(value);
+			parameter.setValue(parseValue(value, parameter));
 		}
+		getParametrized().setParameter(parameter);
+	}
+
+	private String parseValue(String value, T parameter) {
+		String parsed = value;
+		if(parameter.getType() == ParameterType.Boolean) {
+			parsed = Boolean.toString("on".equals(value));
+		}
+		return parsed;
 	}
 
 	protected void setNewParameter(Form form, String genericPart, String name,
