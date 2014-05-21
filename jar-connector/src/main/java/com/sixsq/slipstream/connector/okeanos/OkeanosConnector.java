@@ -1,198 +1,177 @@
 package com.sixsq.slipstream.connector.okeanos;
-/*
-import com.google.common.base.Function;
-import com.google.common.collect.FluentIterable;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Multimap;
-*/
+
 import com.sixsq.slipstream.configuration.Configuration;
+import com.sixsq.slipstream.connector.CliConnectorBase;
 import com.sixsq.slipstream.connector.Connector;
-import com.sixsq.slipstream.connector.openstack.OpenStackConnector;
-import com.sixsq.slipstream.connector.openstack.OpenStackImageParametersFactory;
-import com.sixsq.slipstream.connector.openstack.OpenStackUserParametersFactory;
+import com.sixsq.slipstream.credentials.Credentials;
 import com.sixsq.slipstream.exceptions.*;
 import com.sixsq.slipstream.persistence.*;
-/*
-import org.jclouds.Constants;
-import org.jclouds.ContextBuilder;
-import org.jclouds.compute.ComputeService;
-import org.jclouds.compute.ComputeServiceContext;
-import org.jclouds.compute.Utils;
-import org.jclouds.compute.domain.ExecResponse;
-import org.jclouds.compute.domain.NodeMetadata;
-import org.jclouds.compute.domain.NodeMetadataBuilder;
-import org.jclouds.domain.Credentials;
-import org.jclouds.domain.LoginCredentials;
-import org.jclouds.openstack.keystone.v2_0.config.CredentialTypes;
-import org.jclouds.openstack.keystone.v2_0.config.KeystoneProperties;
-import org.jclouds.openstack.nova.v2_0.NovaApi;
-import org.jclouds.openstack.nova.v2_0.domain.Address;
-import org.jclouds.openstack.nova.v2_0.domain.Server;
-import org.jclouds.openstack.nova.v2_0.domain.ServerCreated;
-import org.jclouds.openstack.nova.v2_0.features.ServerApi;
-import org.jclouds.openstack.nova.v2_0.options.CreateServerOptions;
-import org.jclouds.ssh.SshClient;
-import org.jclouds.sshj.config.SshjSshClientModule;
-*/
+import com.sixsq.slipstream.util.ProcessUtils;
+
+import java.io.IOException;
 import java.util.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * @author Christos KK Loverdos <loverdos@gmail.com>
  */
-public class OkeanosConnector extends OpenStackConnector {
+public class OkeanosConnector extends CliConnectorBase {
+    private static Logger log = Logger.getLogger(OkeanosConnector.class.toString());
     public static final String CLOUD_SERVICE_NAME = "okeanos";
-    public static final String JCLOUDS_DRIVER_NAME = "openstack-nova";
     public static final String CLOUDCONNECTOR_PYTHON_MODULENAME = "slipstream.cloudconnectors.okeanos.OkeanosClientCloud";
 
-    public OkeanosConnector() {
-        this(OkeanosConnector.CLOUD_SERVICE_NAME);
+    public static final String COMMAND_DESCRIBE_INSTANCES  = "/usr/bin/okeanos-describe-instances";
+    public static final String COMMAND_RUN_INSTANCES       = "/usr/bin/okeanos-run-instances";
+    public static final String COMMAND_TERMINATE_INSTANCES = "/usr/bin/okeanos-terminate-instances";
 
+    public OkeanosConnector() { this(OkeanosConnector.CLOUD_SERVICE_NAME); }
+
+    public OkeanosConnector(String instanceName) { super(instanceName); }
+
+    public boolean isEmptyOrNull(String s) { return s == null || s.isEmpty(); }
+
+    public List<String> mkList(String... args) { return Arrays.asList(args); }
+
+    public List<String> mkList(String command, List<String> others, String... more) {
+        final List<String> list = new ArrayList<String>(1 + others.size() + more.length);
+        list.add(command);
+        list.addAll(others);
+        list.addAll(mkList(more));
+        return list;
     }
 
-    public OkeanosConnector(String instanceName) {
-        super(instanceName);
+    public List<String> mkList(List<String> list, String ...more) {
+        final List<String> bigOne = new ArrayList<String>(list);
+        bigOne.addAll(mkList(more));
+        return bigOne;
+    }
+
+    public String[] toArray(List<String> list) { return list.toArray(new String[list.size()]); }
+
+    protected String constructKey(String key) throws ValidationException {
+        return new OkeanosUserParametersFactory(getConnectorInstanceName()).constructKey(key);
     }
 
     @Override
-    public Connector copy() {
-        return new OkeanosConnector(getConnectorInstanceName());
+    public Map<String, ServiceConfigurationParameter> getServiceConfigurationParametersTemplate()
+        throws ValidationException {
+        return new OkeanosSystemConfigurationParametersFactory(getConnectorInstanceName()).getParameters();
     }
 
-    public String getCloudServiceName() {
-        return OkeanosConnector.CLOUD_SERVICE_NAME;
-    }
-/*
-    public String getJcloudsDriverName() {
-        return OkeanosConnector.JCLOUDS_DRIVER_NAME;
+    public Connector copy() { return new OkeanosConnector(getConnectorInstanceName()); }
+
+    public String getCloudServiceName() { return OkeanosConnector.CLOUD_SERVICE_NAME; }
+
+    protected String getInstanceType(Run run) throws SlipStreamClientException, ConfigurationException {
+        return (isInOrchestrationContext(run))
+            ? Configuration.
+                getInstance().
+                getRequiredProperty(
+                    constructKey(OkeanosUserParametersFactory.ORCHESTRATOR_INSTANCE_TYPE_PARAMETER_NAME)
+                )
+            : getInstanceType(ImageModule.load(run.getModuleResourceUrl()));
     }
 
+    private void validateRun(Run run, User user) throws ConfigurationException, SlipStreamClientException, ServerExecutionEnginePluginException {
+        final String instanceSize = getInstanceType(run);
+        if (instanceSize == null || instanceSize.isEmpty() || "".equals(instanceSize) ){
+            throw new ValidationException("Instance type cannot be empty.");
+        }
 
-    protected Iterable<com.google.inject.Module> getContextBuilderModules() {
-        return ImmutableSet.<com.google.inject.Module>of(
-            new SshjSshClientModule()
+        final String imageId = getImageId(run, user);
+        if (isEmptyOrNull(imageId)){
+            throw new ValidationException("Image ID cannot be empty");
+        }
+    }
+
+    protected void validateCredentials(User user) throws ValidationException {
+        super.validateCredentials(user);
+
+        final String endpoint = getEndpoint(user);
+        if (isEmptyOrNull(endpoint)) {
+            throw new ValidationException("Cloud Endpoint cannot be empty. Please contact your SlipStream administrator.");
+        }
+    }
+
+    protected String getRegion() throws ConfigurationException, ValidationException {
+        return Configuration.
+            getInstance().
+            getRequiredProperty(
+                constructKey(OkeanosUserParametersFactory.SERVICE_REGION_PARAMETER_NAME)
+            );
+    }
+
+    protected String getServiceType() throws ConfigurationException, ValidationException {
+        return Configuration.
+            getInstance().
+            getRequiredProperty(
+                constructKey(OkeanosUserParametersFactory.SERVICE_TYPE_PARAMETER_NAME)
+            );
+    }
+
+    protected String getServiceName() throws ConfigurationException, ValidationException {
+        return Configuration.
+            getInstance().
+            getRequiredProperty(
+                constructKey(OkeanosUserParametersFactory.SERVICE_NAME_PARAMETER_NAME)
+            );
+    }
+
+    private List<String> getCommandUserParams(User user) throws ValidationException {
+        return mkList(
+            "--username", getKey(user),
+            "--password", getSecret(user),
+            "--endpoint", getEndpoint(user),
+            "--region", getRegion(),
+            "--service-type", getServiceType(),
+            "--service-name", getServiceName()
         );
     }
 
-    protected ContextBuilder newContextBuilder() {
-        return ContextBuilder.newBuilder(getJcloudsDriverName());
+    protected String getVmName(Run run) {
+        return run.getType() == RunType.Orchestration
+            ? getOrchestratorName(run) + "-" + run.getUuid()
+            : "machine" + "-" + run.getUuid();
     }
 
-    protected ContextBuilder updateContextBuilder(ContextBuilder contextBuilder, User user, Properties overrides) {
-        overrides.put("jclouds.ssh.max-retries", "1");
-        overrides.put("jclouds.compute.timeout.script-complete", 1000L/*ms* * 60 /*sec* * 20 /*min*);
-        overrides.put(Constants.PROPERTY_PRETTY_PRINT_PAYLOADS, "true");
-        overrides.put(Constants.PROPERTY_CONNECTION_TIMEOUT, "0");
-        overrides.put(Constants.PROPERTY_SO_TIMEOUT, "0");
-
-        return contextBuilder
-            .modules(getContextBuilderModules())
-            .credentials(getKey(user), getSecret(user))
-            .overrides(overrides);
-    }
-
-    protected void updateContextBuilderPropertiesOverrides(User user, Properties overrides) throws ValidationException {
-        if (overrides == null) {
-            throw new NullPointerException("overrides");
+    protected String getNetwork(Run run) throws ValidationException{
+        if (run.getType() == RunType.Orchestration) {
+            return "";
+        } else {
+            ImageModule machine = ImageModule.load(run.getModuleResourceUrl());
+            return machine.getParameterValue(ImageModule.NETWORK_KEY, null);
         }
-
-        overrides.setProperty(Constants.PROPERTY_ENDPOINT, user.getParameterValue(constructKey(OpenStackUserParametersFactory.ENDPOINT_PARAMETER_NAME),""));
-        overrides.setProperty(Constants.PROPERTY_RELAX_HOSTNAME, "true");
-        overrides.setProperty(Constants.PROPERTY_TRUST_ALL_CERTS, "true");
-        overrides.setProperty(KeystoneProperties.CREDENTIAL_TYPE, CredentialTypes.PASSWORD_CREDENTIALS);
-        overrides.setProperty(KeystoneProperties.REQUIRES_TENANT, "true");
-        overrides.setProperty(KeystoneProperties.TENANT_NAME, user.getParameterValue(constructKey(OpenStackUserParametersFactory.TENANT_NAME), ""));
-
-        overrides.setProperty(Constants.PROPERTY_API_VERSION, "v2.0");
     }
 
-    protected ComputeService getComputeService() {
-        return computeServiceContext.getComputeService();
+    protected String getSecurityGroups(Run run) throws ValidationException {
+        return isInOrchestrationContext(run)
+            ? "default"
+            : getParameterValue(
+                OkeanosImageParametersFactory.SECURITY_GROUPS,
+                ImageModule.load(run.getModuleResourceUrl()));
     }
 
-    protected void closeContext() {
-        super.closeContext();
-        computeServiceContext.close();
-    }
+    protected String createContextualizationData(Run run, User user) throws ConfigurationException, ServerExecutionEnginePluginException, SlipStreamClientException {
 
-    protected String getIpAddress(NovaApi client, String region, String instanceId) {
-        final FluentIterable<? extends Server> instances = client.getServerApiForZone(region).listInDetail().concat();
-        for(final Server instance : instances) {
-            if(instance.getId().equals(instanceId)) {
-                final Multimap<String, Address> addresses = instance.getAddresses();
+        final Configuration configuration = Configuration.getInstance();
 
-                if(instance.getId().equals(instanceId)) {
-                    if(addresses.size() > 0) {
-                        if(addresses.containsKey("public")) {
-                            final String addr = addresses.get("public").iterator().next().getAddr();
-                            return addr;
-                        }
-                        else if(addresses.containsKey("private")) {
-                            final String addr = addresses.get("private").iterator().next().getAddr();
-                            return addr;
-                        }
-                        else {
-                            final String instanceNetworkID = addresses.keySet().iterator().next();
-                            final Collection<Address> instanceAddresses = addresses.get(instanceNetworkID);
-                            if(instanceAddresses.size() > 0) {
-                                final String addr = instanceAddresses.iterator().next().getAddr();
-                                return addr;
-                            }
-                        }
-                    }
+        final String logfilename = "orchestrator.slipstream.log";
+        final String bootstrap = "/tmp/slipstream.bootstrap";
+        final String username = user.getName();
 
-                    break;
-                }
-            }
-        }
-        return "";
-    }
-
-    @Override
-    protected NovaApi getClient(User user, Properties overrides) throws InvalidElementException, ValidationException {
-        if (overrides == null) {
-            overrides = new Properties();
-        }
-        updateContextBuilderPropertiesOverrides(user, overrides);
-
-        final ContextBuilder contextBuilder = updateContextBuilder(newContextBuilder(), user, overrides);
-        this.computeServiceContext = contextBuilder.buildView(ComputeServiceContext.class);
-        this.context = this.computeServiceContext.unwrap();
-        return this.context.getApi();
-    }
-
-    protected String createContextualizationDataPlus(
-        Run run,
-        User user,
-        Configuration configuration,
-        String extraLines
-    ) throws ConfigurationException, ServerExecutionEnginePluginException, SlipStreamClientException {
-
-        String logfilename = "orchestrator.slipstream.log";
-        String bootstrap = "/tmp/slipstream.bootstrap";
-
-        String username = user.getName();
-        String password = user.getPassword();
-        if (password == null) {
-            throw (new ServerExecutionEnginePluginException(
-                "Missing password entry in user profile"));
-        }
-
-        String targetScript = "";
-		String nodename = Run.MACHINE_NAME;
+        final String targetScript;
+        final String nodename;
         if(isInOrchestrationContext(run)){
-			targetScript = "slipstream-orchestrator";
-			nodename = getOrchestratorName(run);
-		}
+            targetScript = "slipstream-orchestrator";
+            nodename = getOrchestratorName(run);
+        } else {
+            targetScript = "";
+            nodename = Run.MACHINE_NAME;
+        }
 
         String userData = "#!/bin/sh -e \n";
-
-        userData += "# SlipStream contextualization script for ~Okeanos\n";
-        {
-            userData += "## ++ EXTRA LINES\n";
-            if(!extraLines.endsWith("\n")) extraLines += "\n";
-            userData += extraLines;
-            userData += "## -- EXTRA LINES\n";
-        }
+        userData += "# SlipStream contextualization script for VMs on Amazon. \n";
         userData += "export SLIPSTREAM_CLOUD=\"" + getCloudServiceName() + "\"\n";
         userData += "export SLIPSTREAM_CONNECTOR_INSTANCE=\"" + getConnectorInstanceName() + "\"\n";
         userData += "export SLIPSTREAM_NODENAME=\"" + nodename + "\"\n";
@@ -201,16 +180,21 @@ public class OkeanosConnector extends OpenStackConnector {
         userData += "export SLIPSTREAM_SERVICEURL=\"" + configuration.baseUrl + "\"\n";
         userData += "export SLIPSTREAM_BUNDLE_URL=\"" + configuration.getRequiredProperty("slipstream.update.clienturl") + "\"\n";
         userData += "export SLIPSTREAM_BOOTSTRAP_BIN=\"" + configuration.getRequiredProperty("slipstream.update.clientbootstrapurl") + "\"\n";
-        userData += "export LIBCLOUD_BUNDLE_URL=\"" + configuration.getRequiredProperty("cloud.connector.library.libcloud.url") + "\"\n";
-        userData += "export CLOUDCONNECTOR_PYTHON_MODULENAME=\"" + OkeanosConnector.CLOUDCONNECTOR_PYTHON_MODULENAME + "\"\n";
-        userData += "export OPENSTACK_SERVICE_TYPE=\"" + configuration.getRequiredProperty(constructKey(OpenStackUserParametersFactory.SERVICE_TYPE_PARAMETER_NAME)) + "\"\n";
-        userData += "export OPENSTACK_SERVICE_NAME=\"" + configuration.getRequiredProperty(constructKey(OpenStackUserParametersFactory.SERVICE_NAME_PARAMETER_NAME)) + "\"\n";
-        userData += "export OPENSTACK_SERVICE_REGION=\"" + configuration.getRequiredProperty(constructKey(OpenStackUserParametersFactory.SERVICE_REGION_PARAMETER_NAME)) + "\"\n";
+        userData += "export CLOUDCONNECTOR_BUNDLE_URL=\"" + configuration.getRequiredProperty("cloud.connector.library.libcloud.url") + "\"\n";
+        userData += "export CLOUDCONNECTOR_PYTHON_MODULENAME=\"" + CLOUDCONNECTOR_PYTHON_MODULENAME + "\"\n";
+        userData += "export OPENSTACK_SERVICE_TYPE=\"" + configuration.getRequiredProperty(constructKey(OkeanosUserParametersFactory.SERVICE_TYPE_PARAMETER_NAME)) + "\"\n";
+        userData += "export OPENSTACK_SERVICE_NAME=\"" + configuration.getRequiredProperty(constructKey(OkeanosUserParametersFactory.SERVICE_NAME_PARAMETER_NAME)) + "\"\n";
+        userData += "export OPENSTACK_SERVICE_REGION=\"" + configuration.getRequiredProperty(constructKey(OkeanosUserParametersFactory.SERVICE_REGION_PARAMETER_NAME)) + "\"\n";
         userData += "export SLIPSTREAM_CATEGORY=\"" + run.getCategory().toString() + "\"\n";
         userData += "export SLIPSTREAM_USERNAME=\"" + username + "\"\n";
         userData += "export SLIPSTREAM_COOKIE=" + getCookieForEnvironmentVariable(username) + "\n";
         userData += "export SLIPSTREAM_VERBOSITY_LEVEL=\"" + getVerboseParameterValue(user) + "\"\n";
 
+		/*userData += "mkdir -p ~/.ssh\n"
+				+ "echo '" + getPublicSshKey(run, user) + "' >> ~/.ssh/authorized_keys\n"
+				+ "chmod 0700 ~/.ssh\n"
+				+ "chmod 0640 ~/.ssh/authorized_keys\n";
+		*/
         userData += "mkdir -p " + SLIPSTREAM_REPORT_DIR + "\n"
             + "wget --secure-protocol=SSLv3 --no-check-certificate -O " + bootstrap
             + " $SLIPSTREAM_BOOTSTRAP_BIN > " + SLIPSTREAM_REPORT_DIR + "/"
@@ -218,225 +202,97 @@ public class OkeanosConnector extends OpenStackConnector {
             + bootstrap + " " + targetScript + " >> "
             + SLIPSTREAM_REPORT_DIR + "/" + logfilename + " 2>&1\n";
 
-        System.out.print(userData);
+        log.info(userData);
 
         return userData;
     }
 
-    // We use the same structure of the parent method and just change the details that are different
-    // for Synnefo. In particular, we do not rely on the KeyPair OpenStack extension, but run scripts
-    // via SSH directly.
-    // NOTE From the currently provided Okeanos images, we cannot login to Ubuntu as root.
-    //      This means that we must rely on a custom image, from which we can spawn Ubuntu servers
-    //      for use by SlipStream.
-    //      Using kamaki, after we create the custom image by just copying the official
-    //      Ubuntu Server one, we enable root:
-    //        $ kamaki image compute properties set CUSTOM_IMAGE_ID users="user root"
-    @Override
-    protected void launchDeployment(Run run, User user) throws ServerExecutionEnginePluginException, ClientExecutionEnginePluginException, InvalidElementException, ValidationException {
-        System.out.println("launchDeployment()");
-        Properties overrides = new Properties();
-        NovaApi client = getClient(user, overrides);
+    private List<String> getRunInstanceCmdline(Run run, User user) throws SlipStreamClientException, IOException, ConfigurationException, ServerExecutionEnginePluginException {
+        return mkList(
+            COMMAND_RUN_INSTANCES,
+            getCommandUserParams(user),
+            "--instance-type", getInstanceType(run),
+            "--image-id", getImageId(run, user),
+            "--instance-name", getVmName(run),
+            "--network-type", getNetwork(run),
+            "--security-groups", getSecurityGroups(run),
+            "--public-key", getPublicSshKey(run, user),
+            "--context-script", createContextualizationData(run, user)
+        );
+    }
 
+    public Run launch(Run run, User user) throws SlipStreamException {
         try {
-            Configuration configuration = Configuration.getInstance();
+            validateRun(run, user);
+            final List<String> cmdline = getRunInstanceCmdline(run, user);
+            final String[] cmdlineArray = toArray(cmdline);
+            final String result = ProcessUtils.execGetOutput(cmdlineArray, false);
 
-            ImageModule imageModule = (run.getType() == RunType.Machine) ? ImageModule
-                .load(run.getModuleResourceUrl()) : null;
-
-            String region = configuration.getRequiredProperty(constructKey(OpenStackUserParametersFactory.SERVICE_REGION_PARAMETER_NAME));
-            System.out.println("region = " + region);
-            String imageId = (isInOrchestrationContext(run))? getOrchestratorImageId(user) : getImageId(run, user);
-            System.out.println("imageId = " + imageId);
-
-            String instanceName = (isInOrchestrationContext(run)) ? getOrchestratorName(run) : imageModule.getShortName();
-            System.out.println("instanceName = " + instanceName);
-
-            String flavorName = (isInOrchestrationContext(run)) ? configuration
-                .getRequiredProperty(constructKey(OpenStackUserParametersFactory.ORCHESTRATOR_INSTANCE_TYPE_PARAMETER_NAME))
-                : getInstanceType(imageModule);
-            System.out.println("flavorName = " + flavorName);
-            String flavorId = getFlavorId(client, region, flavorName);
-            System.out.println("flavorId = " + flavorId);
-            String[] securityGroups = (isInOrchestrationContext(run)) ? "default".split(",")
-                : getParameterValue(OpenStackImageParametersFactory.SECURITY_GROUPS, imageModule).split(",");
-            System.out.println("securityGroups = " + Arrays.toString(securityGroups));
-
-            String instanceData = "\n\nStarting instance on region '" + region + "'\n";
-            instanceData += "Image id: " + imageId + "\n";
-            instanceData += "Instance type: " + flavorName + "\n";
-            System.out.println("instanceData = " + instanceData);
-
-            CreateServerOptions options = CreateServerOptions.Builder
-                .securityGroupNames(securityGroups);
-
-            ServerCreated server = null;
-            final ServerApi novaAPI = client.getServerApiForZone(region);
-            try {
-                server = novaAPI.create(instanceName, imageId, flavorId, options);
-            }
-            catch(Exception e) {
-                e.printStackTrace();
-                throw (new ServerExecutionEnginePluginException(e.getMessage()));
-            }
-
-            final String instanceId = server.getId();
-            String ipAddress = "";
-
-            while(ipAddress.isEmpty()) {
-                try {
-                    System.out.println("ipAddress is empty, sleeping...");
-                    Thread.sleep(3000);
-                }
-                catch(InterruptedException ignored) {
-                }
-                ipAddress = getIpAddress(client, region, instanceId);
-            }
-
-            System.out.println("ipAddress = " + ipAddress);
+            final String[] instanceData = parseRunInstanceResult(result);
+            final String instanceId = instanceData[0];
+            final String ipAddress = instanceData[1];
 
             updateInstanceIdAndIpOnRun(run, instanceId, ipAddress);
-            // force commit
-            final String persistenceUnit = System.getProperty("persistence.unit","UNKNOWN");
-            System.out.println("persistenceUnit = " + persistenceUnit);
-            run.store();
-//            try {
-//                final EntityManager entityManager = PersistenceUtil.createEntityManager();
-//                run = entityManager.merge(run);
-//                final FlushModeType flashMode = entityManager.getFlushMode();
-//                System.out.println("flashMode = " + flashMode);
-//            }
-//            catch(Exception e) {
-//                e.printStackTrace();
-//                System.out.println("Ignoring " + e);
-//            }
-
-            // Now run the initial script for the Orchestration VM
-            final String nodeUsername = "root";
-            System.out.println("nodeUsername = " + nodeUsername);
-            final String nodePassword = server.getAdminPass();
-            System.out.println("nodePassword = " + nodePassword);
-            final String nodeId = String.format("%s/%s", region, instanceId);
-            System.out.println("nodeId = " + nodeId);
-
-            System.out.println("++==== INITIAL SCRIPT ========");
-            final String extraLines = String.format(
-                "export ORCHESTRATOR_VM_ROOT_PASSWORD=\"%s\"%n" +
-                    "export ORCHESTRATOR_VM_ID=\"%s\"%n",
-                nodePassword,
-                nodeId
-            );
-            final String orchestratorScript = createContextualizationDataPlus(run, user, configuration, extraLines);
-            System.out.println("--==== INITIAL SCRIPT ========");
-
-
-            final SshClient sshClient = getSSHClient(nodeId, nodeUsername, nodePassword);
-            System.out.println("sshClient = " + sshClient);
+        } catch (IOException e) {
+            log.log(Level.SEVERE, "launch", e);
+            throw new SlipStreamException("Failed getting run instance command", e);
+        } catch (ProcessException e) {
+            log.log(Level.SEVERE, "launch", e);
             try {
-                sshClient.connect();
-                System.out.println("!!! Executing script");
-                ExecResponse response = sshClient.exec(orchestratorScript);
-                System.out.println("response = " + response);
+                final String[] instanceData = parseRunInstanceResult(e.getStdOut());
+                updateInstanceIdAndIpOnRun(run, instanceData[0], instanceData[1]);
+            } catch (Exception ex) {
+                log.log(Level.WARNING, "launch: updateInstanceIdAndIpOnRun()", ex);
             }
-            finally {
-                try { if(sshClient != null) sshClient.disconnect(); }
-                catch(Exception e) { e.printStackTrace(); }
-            }
+            throw e;
+        } finally {
+            deleteTempSshKeyFile();
         }
-        catch(com.google.common.util.concurrent.UncheckedExecutionException e) {
-            e.printStackTrace();
-            if(e.getCause() != null && e.getCause().getCause() != null && e.getCause().getCause().getClass() == org.jclouds.rest.AuthorizationException.class){
-                throw new ServerExecutionEnginePluginException("Authorization exception for the cloud: " + getConnectorInstanceName() + ". Please check your credentials.");
-            }else if(e.getCause() != null && e.getCause().getCause() != null && e.getCause().getCause().getClass() == java.lang.IllegalArgumentException.class){
-                throw new ServerExecutionEnginePluginException("Error setting execution instance for the cloud " + getConnectorInstanceName() + ": " + e.getCause().getCause().getMessage());
-            }else{
-                throw new ServerExecutionEnginePluginException(e.getMessage());
-            }
-        }
-        catch(SlipStreamException e) {
-            e.printStackTrace();
-            throw (new ServerExecutionEnginePluginException(
-                "Error setting execution instance for the cloud " + getConnectorInstanceName() + ": " + e.getMessage()));
-        }
-        catch(Exception e) {
-            e.printStackTrace();
-            throw new ServerExecutionEnginePluginException(e.getMessage());
-        }
-        finally {
-            closeContext();
-        }
+
+        return run;
     }
 
-    protected SshClient getSSHClient(String nodeId, String nodeUsername, String nodePassword) {
-        final NodeMetadata baseNodeMetadata = getComputeService().getNodeMetadata(nodeId);
-        final NodeMetadata nodeMetadata = NodeMetadataBuilder.fromNodeMetadata(baseNodeMetadata).
-            credentials(LoginCredentials.fromCredentials(new Credentials(nodeUsername, nodePassword))).
-            build();
-        final Utils sshUtils = computeServiceContext.getUtils();
-
-        final Function<NodeMetadata,SshClient> sshClientFunction = sshUtils.sshForNode();
-        final SshClient sshClient = sshClientFunction.apply(nodeMetadata);
-
-        return sshClient;
+    public Credentials getCredentials(User user) {
+        return new OkeanosCredentials(user, getConnectorInstanceName());
     }
 
-    // Copied from ConnectorBase to inject some debugging
-    // There is a bug here, no id is found.
-    protected List<String> getCloudNodeInstanceIds(Run run)
-        throws NotFoundException, ValidationException {
-        System.out.println("++getCloudNodeInstanceIds()");
-        List<String> ids = new ArrayList<String>();
+    public Properties describeInstances(User user) throws SlipStreamException {
+        validateCredentials(user);
 
-        for (String nodeName : run.getNodeNameList()) {
-            nodeName = nodeName.trim();
-            System.out.println("nodeName = " + nodeName);
+        final List<String> cmdline = mkList(COMMAND_DESCRIBE_INSTANCES, getCommandUserParams(user));
+        final String[] cmdlineArray = toArray(cmdline);
 
-            String idKey = nodeName + RuntimeParameter.NODE_PROPERTY_SEPARATOR
-                + RuntimeParameter.INSTANCE_ID_KEY;
-            System.out.println("idKey = " + idKey);
-
-            String cloudServiceKey = nodeName
-                + RuntimeParameter.NODE_PROPERTY_SEPARATOR
-                + RuntimeParameter.CLOUD_SERVICE_NAME;
-            System.out.println("cloudServiceKey = " + cloudServiceKey);
-
-            String id = (String) run.getRuntimeParameterValueIgnoreAbort(idKey);
-            System.out.println("id = " + id);
-            String cloudService = run
-                .getRuntimeParameterValueIgnoreAbort(cloudServiceKey);
-            System.out.println("cloudService = " + cloudService);
-
-            if (id != null
-                && this.getConnectorInstanceName().equals(cloudService)) {
-                ids.add(id);
-            }
+        try {
+            final String result = ProcessUtils.execGetOutput(cmdlineArray);
+            return parseDescribeInstanceResult(result);
+        } catch (IOException e) {
+            log.log(Level.SEVERE, "describeInstances", e);
+            throw new SlipStreamInternalException(e);
         }
-        System.out.println("--getCloudNodeInstanceIds()");
-        return ids;
     }
 
     public void terminate(Run run, User user) throws SlipStreamException {
-        System.out.println("++terminate()");
-        NovaApi client = getClient(user);
+        validateCredentials(user);
 
-        Configuration configuration = Configuration.getInstance();
-        String region = configuration
-            .getRequiredProperty(constructKey(OpenStackUserParametersFactory.SERVICE_REGION_PARAMETER_NAME));
-        System.out.println("region = " + region);
+        log.info(getConnectorInstanceName() + ". Terminating all instances.");
 
-        final List<String> cloudNodeInstanceIds = getCloudNodeInstanceIds(run);
-        if(cloudNodeInstanceIds.isEmpty()) {
-            System.out.println("cloudNodeInstanceIds is empty");
-        }
-        for (String instanceId : cloudNodeInstanceIds) {
-            if (instanceId == null) {
-                continue;
+        final List<String> cmdlineTpl = mkList(
+            COMMAND_TERMINATE_INSTANCES,
+            getCommandUserParams(user),
+            "--instance-id"
+        );
+
+        for (final String id : getCloudNodeInstanceIds(run)) {
+            final List<String> cmdline = mkList(cmdlineTpl, id);
+            final String[] cmdlineArray = toArray(cmdline);
+
+            try {
+                ProcessUtils.execGetOutput(cmdlineArray);
+            } catch (SlipStreamClientException e) {
+                log.log(Level.WARNING, "terminate(). Failed to terminate instance " + id, e);
+            } catch (IOException e) {
+                log.log(Level.WARNING, "terminate()", e);
             }
-            System.out.println("Deleting instanceId = '" + instanceId + "'");
-            client.getServerApiForZone(region).delete(instanceId);
         }
-
-        System.out.println("--terminate()");
     }
-    */
 }
