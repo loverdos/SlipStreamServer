@@ -295,4 +295,9 @@ public class OkeanosConnector extends CliConnectorBase {
             }
         }
     }
+
+    @Override
+    public Map<String, UserParameter> getUserParametersTemplate() throws ValidationException {
+        return new OkeanosUserParametersFactory(getConnectorInstanceName()).getParameters();
+    }
 }
