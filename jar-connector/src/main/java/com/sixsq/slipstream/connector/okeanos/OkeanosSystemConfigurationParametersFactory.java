@@ -41,14 +41,24 @@ public class OkeanosSystemConfigurationParametersFactory extends
         );
     }
 
-	@Override
+    @Override
+    protected void putMandatoryOrchestrationImageId() throws ValidationException {
+        putMandatoryParameter(
+            super.constructKey(UserParametersFactoryBase.ORCHESTRATOR_IMAGEID_PARAMETER_NAME),
+            "Image Id of the orchestrator for " + getCategory(),
+            "6b1c431a-d18c-4609-b4d9-3f29acce2c1f"
+        );
+    }
+
+    @Override
 	protected void initReferenceParameters() throws ValidationException {
         putMandatoryOrchestrationImageId();
 		putMandatoryEndpoint();
 		
 		putMandatoryParameter(
             constructKey(OkeanosUserParametersFactory.ORCHESTRATOR_INSTANCE_TYPE_PARAMETER_NAME),
-            "Okeanos flavor for the orchestrator. The actual image should support the desired Flavor"
+            "Okeanos flavor for the orchestrator. The actual image should support the desired Flavor",
+            "C2R2048D10ext_vlmc"
         );
 
         putMandatoryParameter(
