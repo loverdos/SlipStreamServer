@@ -3,6 +3,7 @@ package com.sixsq.slipstream.connector.okeanos;
 import com.sixsq.slipstream.configuration.Configuration;
 import com.sixsq.slipstream.connector.CliConnectorBase;
 import com.sixsq.slipstream.connector.Connector;
+import com.sixsq.slipstream.connector.UserParametersFactoryBase;
 import com.sixsq.slipstream.credentials.Credentials;
 import com.sixsq.slipstream.exceptions.*;
 import com.sixsq.slipstream.persistence.*;
@@ -118,6 +119,34 @@ public class OkeanosConnector extends CliConnectorBase {
             getRequiredProperty(
                 constructKey(OkeanosUserParametersFactory.SERVICE_NAME_PARAMETER_NAME)
             );
+    }
+
+    @Override
+    protected String getKey(User user) {
+        try {
+            return getCredentials(user).getKey();
+        }
+        catch(InvalidElementException e) {
+            throw new SlipStreamRuntimeException(e);
+        }
+    }
+
+    @Override
+    protected String getSecret(User user) {
+        try {
+            return getCredentials(user).getSecret();
+        }
+        catch(InvalidElementException e) {
+            throw new SlipStreamRuntimeException(e);
+        }
+    }
+
+    @Override
+    protected String getEndpoint(User user) {
+        return user.
+            getParameter(
+                getConnectorInstanceName() + "." + UserParametersFactoryBase.ENDPOINT_PARAMETER_NAME
+            ).getValue();
     }
 
     private List<String> getCommandUserParams(User user) throws ValidationException {
