@@ -62,6 +62,11 @@ public class OkeanosConnector extends CliConnectorBase {
         return new OkeanosSystemConfigurationParametersFactory(getConnectorInstanceName()).getParameters();
     }
 
+    @Override
+    public Map<String, ModuleParameter> getImageParametersTemplate() throws ValidationException {
+        return new OkeanosImageParametersFactory(getConnectorInstanceName()).getParameters();
+    }
+
     public Connector copy() { return new OkeanosConnector(getConnectorInstanceName()); }
 
     public String getCloudServiceName() { return OkeanosConnector.CLOUD_SERVICE_NAME; }
