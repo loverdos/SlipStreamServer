@@ -13,6 +13,8 @@ import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import static java.lang.String.format;
+
 /**
  * @author Christos KK Loverdos <loverdos@gmail.com>
  */
@@ -21,9 +23,9 @@ public class OkeanosConnector extends CliConnectorBase {
     public static final String CLOUD_SERVICE_NAME = "okeanos";
     public static final String CLOUDCONNECTOR_PYTHON_MODULENAME = "slipstream.cloudconnectors.okeanos.OkeanosClientCloud";
 
-    public static final String COMMAND_DESCRIBE_INSTANCES  = "/usr/bin/okeanos-describe-instances";
-    public static final String COMMAND_RUN_INSTANCES       = "/usr/bin/okeanos-run-instances";
-    public static final String COMMAND_TERMINATE_INSTANCES = "/usr/bin/okeanos-terminate-instances";
+    public static final String COMMAND_DESCRIBE_INSTANCES  = format("%s/okeanos-describe-instances", CLI_LOCATION);
+    public static final String COMMAND_RUN_INSTANCES       = format("%s/okeanos-run-instances", CLI_LOCATION);
+    public static final String COMMAND_TERMINATE_INSTANCES = format("%s/okeanos-terminate-instances", CLI_LOCATION);
 
     public OkeanosConnector() { this(OkeanosConnector.CLOUD_SERVICE_NAME); }
 
