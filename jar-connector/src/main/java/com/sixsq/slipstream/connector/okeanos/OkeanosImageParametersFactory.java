@@ -34,7 +34,7 @@ public class OkeanosImageParametersFactory extends ModuleParametersFactoryBase {
 
 	@Override
 	protected void initReferenceParameters() throws ValidationException {
-		putParameter(ImageModule.INSTANCE_TYPE_KEY, "Flavour", true);
+		putParameter(ImageModule.INSTANCE_TYPE_KEY, "C2R2048D10ext_vlmc", "Flavor", true);
         putMandatoryParameter(SECURITY_GROUPS, "Security Groups (comma separated list)", "default");
 	}
 }

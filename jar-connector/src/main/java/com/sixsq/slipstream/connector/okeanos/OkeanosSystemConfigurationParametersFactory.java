@@ -24,13 +24,29 @@ import com.sixsq.slipstream.connector.SystemConfigurationParametersFactoryBase;
 import com.sixsq.slipstream.connector.UserParametersFactoryBase;
 import com.sixsq.slipstream.exceptions.ValidationException;
 
-public class OkeanosSystemConfigurationParametersFactory extends
-		SystemConfigurationParametersFactoryBase {
+import java.util.logging.Logger;
+
+import static java.lang.String.format;
+
+public class OkeanosSystemConfigurationParametersFactory extends SystemConfigurationParametersFactoryBase {
+    private static Logger log = Logger.getLogger(OkeanosSystemConfigurationParametersFactory.class.toString());
 
 	public OkeanosSystemConfigurationParametersFactory(String connectorInstanceName)
 			throws ValidationException {
 		super(connectorInstanceName);
 	}
+
+    @Override
+    protected void putMandatoryParameter(String name, String description, String value) throws ValidationException {
+        log.info(
+            format(
+                "%s::putMandatoryParameter(), name=%s, description=%s, value=%s",
+                OkeanosSystemConfigurationParametersFactory.class.getSimpleName(),
+                name, description, value
+            )
+        );
+        super.putMandatoryParameter(name, description, value);
+    }
 
     @Override
     protected void putMandatoryEndpoint() throws ValidationException {
@@ -52,6 +68,7 @@ public class OkeanosSystemConfigurationParametersFactory extends
 
     @Override
 	protected void initReferenceParameters() throws ValidationException {
+        log.entering(OkeanosSystemConfigurationParametersFactory.class.getSimpleName(), "initReferenceParameters");
         putMandatoryOrchestrationImageId();
 		putMandatoryEndpoint();
 		
