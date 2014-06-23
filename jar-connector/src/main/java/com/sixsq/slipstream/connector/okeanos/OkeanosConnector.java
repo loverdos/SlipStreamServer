@@ -232,6 +232,11 @@ public class OkeanosConnector extends CliConnectorBase {
         public String toString() { return sb.toString(); }
     }
 
+    @Override
+    protected String getCookieForEnvironmentVariable(String identifier) {
+        return generateCookie(identifier);
+    }
+
     protected String createContextualizationData(Run run, User user) throws ConfigurationException, ServerExecutionEnginePluginException, SlipStreamClientException {
 
         final Configuration configuration = Configuration.getInstance();
