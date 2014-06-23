@@ -223,6 +223,37 @@ public class OkeanosConnector extends CliConnectorBase {
             return this;
         }
 
+        Script commandWithEcho(String ...args) {
+            final StringBuilder sbEcho = new StringBuilder();
+            final StringBuilder sbCmd = new StringBuilder();
+
+            if(args.length > 0) {
+                sbEcho.append("echo ");
+            }
+
+            for(int i = 0; i < args.length; i++) {
+                final String arg = args[i];
+
+                sbEcho.append(arg);
+                sbCmd.append(arg);
+
+                if(i < args.length) {
+                    sbEcho.append(' ');
+                    sbCmd.append(' ');
+                }
+            }
+            if(args.length > 0) {
+                sbEcho.append('\n');
+                sbCmd.append('\n');
+
+                sb.append(sbEcho);
+                sb.append(sbCmd);
+            }
+
+            return this;
+        }
+
+
         Script raw(String s) {
             sb.append(s);
             return this;
@@ -279,10 +310,10 @@ public class OkeanosConnector extends CliConnectorBase {
             export("OKEANOS_SERVICE_REGION", configuration.getRequiredProperty(constructKey(OkeanosUserParametersFactory.SERVICE_REGION_PARAMETER_NAME))).
 
             nl().
-            command("mkdir", "-p", SLIPSTREAM_REPORT_DIR).
+            commandWithEcho("mkdir", "-p", SLIPSTREAM_REPORT_DIR).
 
             nl().
-            command(
+            commandWithEcho(
                 "wget", "--secure-protocol=SSLv3", "--no-check-certificate", "-O",
                 bootstrap,
                 "$SLIPSTREAM_BOOTSTRAP_BIN",
@@ -291,10 +322,10 @@ public class OkeanosConnector extends CliConnectorBase {
                 "chmod", "0755", bootstrap).
 
             nl().
-            command(bootstrap, targetScript, ">>", SLIPSTREAM_REPORT_DIR + "/" + logfilename, "2>&1").
+            commandWithEcho(bootstrap, targetScript, ">>", SLIPSTREAM_REPORT_DIR + "/" + logfilename, "2>&1").
 
             nl().
-            comment("End of script");
+            commandWithEcho("exit", "$?");
 
         final String scriptString = script.toString();
         log.info(scriptString);
@@ -315,12 +346,22 @@ public class OkeanosConnector extends CliConnectorBase {
         );
     }
 
+    private String trimTo(StringBuilder s, int length) {
+        if(s.length() <= length) {
+            return s.toString();
+        } else {
+            return s.substring(0, length);
+        }
+    }
+
     private String exec(List<String> cmdline) throws IOException, InterruptedException {
         final class OutputThread extends Thread {
+            final String logPrefix;
             final InputStream in;
             final StringBuilder sb;
 
-            OutputThread(InputStream in, StringBuilder sb) {
+            OutputThread(String logPrefix, InputStream in, StringBuilder sb) {
+                this.logPrefix = logPrefix;
                 this.in = in;
                 this.sb = sb;
             }
@@ -333,6 +374,7 @@ public class OkeanosConnector extends CliConnectorBase {
                 String line = null;
                 try {
                     while((line = br.readLine()) != null) {
+                        log.info(logPrefix + line);
                         sb.append(line);
                         sb.append(System.getProperty("line.separator"));
                     }
@@ -353,6 +395,7 @@ public class OkeanosConnector extends CliConnectorBase {
             cmdsb.append(s);
             cmdsb.append(' '); // never mind one more
         }
+        final String trimmedCmd = trimTo(cmdsb, 80);
 
         log.info(cmdsb.toString());
 
@@ -360,8 +403,8 @@ public class OkeanosConnector extends CliConnectorBase {
         final StringBuilder stderrBuffer = new StringBuilder(1024);
         final ProcessBuilder pb = new ProcessBuilder(cmdline);
         final Process proc = pb.start();
-        final OutputThread stdoutThread  = new OutputThread(proc.getInputStream(), stdoutBuffer);
-        final OutputThread stderrThread = new OutputThread(proc.getErrorStream(), stderrBuffer);
+        final OutputThread stdoutThread = new OutputThread("STDOUT ", proc.getInputStream(), stdoutBuffer);
+        final OutputThread stderrThread = new OutputThread("STDERR ", proc.getErrorStream(), stderrBuffer);
 
         stdoutThread.start();
         stderrThread.start();
@@ -369,39 +412,90 @@ public class OkeanosConnector extends CliConnectorBase {
         stdoutThread.join();
         stderrThread.join();
 
-        if(stdoutBuffer.length() > 0) { log.info("STDOUT follows:\n" + stdoutBuffer); }
-        if(stderrBuffer.length() > 0) { log.info("STDERR follows:\n" + stderrBuffer); }
+        if(stdoutBuffer.length() > 0) { log.info("STDOUT of " + trimmedCmd + "\n" + stdoutBuffer); }
+        if(stderrBuffer.length() > 0) { log.info("STDERR of " + trimmedCmd + "\n" + stderrBuffer); }
 
         if(procResult != 0) {
             final String msg = "Error " + procResult + " executing " + cmdline.get(0);
-            log.severe(msg);
-            log.severe("STDIN:\n" + stdoutBuffer);
-            log.severe("STDERR:\n"+ stderrBuffer);
+            System.err.println(msg);
+//            System.err.println("STDIN:\n" + stdoutBuffer);
+//            System.err.println("STDERR:\n" + stderrBuffer);
             throw new ProcessException(msg, stdoutBuffer.toString());
-        }
-        if(stderrBuffer.length() > 0) {
-            final String msg = cmdline.get(0) + " returned 0 but STDERR not empty";
-            log.severe(msg);
-            log.severe("STDIN:\n" + stdoutBuffer);
-            log.severe("STDERR:\n"+ stderrBuffer);
-            throw new ProcessException(msg, stderrBuffer.toString());
         }
 
         return stdoutBuffer.toString();
     }
 
-    protected String[] _parseRunInstanceResult(String stdout) throws SlipStreamClientException {
+    public static final class RunInstanceReturnData {
+        public final String instanceId;
+        public final String ipv4;
+        public final int exitCode;
+        public final String adminPass;
+
+        public RunInstanceReturnData(String instanceId, String ipv4, int exitCode, String adminPass) {
+            this.instanceId = instanceId;
+            this.ipv4 = ipv4;
+            this.exitCode = exitCode;
+            this.adminPass = adminPass;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if(this == o) {
+                return true;
+            }
+            if(o == null || getClass() != o.getClass()) {
+                return false;
+            }
+
+            RunInstanceReturnData that = (RunInstanceReturnData) o;
+
+            return exitCode == that.exitCode && adminPass.equals(that.adminPass) && instanceId.equals(that.instanceId) && ipv4.equals(that.ipv4);
+
+        }
+
+        @Override
+        public int hashCode() {
+            int result = instanceId.hashCode();
+            result = 31 * result + ipv4.hashCode();
+            result = 31 * result + exitCode;
+            result = 31 * result + adminPass.hashCode();
+            return result;
+        }
+
+        @Override
+        public String toString() {
+            final StringBuilder sb = new StringBuilder("RunInstanceReturnData(");
+            sb.append("instanceId='").append(instanceId).append('\'');
+            sb.append(", ipv4='").append(ipv4).append('\'');
+            sb.append(", exitCode=").append(exitCode);
+            sb.append(", adminPass='").append(adminPass).append('\'');
+            sb.append(')');
+            return sb.toString();
+        }
+    }
+
+    protected void checkScannerNext(Scanner scanner, String stdout) throws SlipStreamClientException {
+        if(!scanner.hasNext()) {
+            throw new SlipStreamClientException("Error returned by launch command. Got: " + stdout);
+        }
+    }
+    protected RunInstanceReturnData _parseRunInstanceResult(String stdout) throws SlipStreamClientException {
         final Scanner scanner = new Scanner(stdout);
-        if(!scanner.hasNext()) {
-            throw new SlipStreamClientException("Error returned by launch command. Got: " + stdout);
-        }
+
+        checkScannerNext(scanner, stdout);
         final String instanceId = scanner.next();
-        if(!scanner.hasNext()) {
-            throw new SlipStreamClientException("Error returned by launch command. Got: " + stdout);
-        }
+
+        checkScannerNext(scanner, stdout);
         final String ipv4 = scanner.next();
 
-        return new String[] {instanceId, ipv4};
+        checkScannerNext(scanner, stdout);
+        final int exitCode = scanner.nextInt();
+
+        checkScannerNext(scanner, stdout);
+        final String adminPass = scanner.next();
+
+        return new RunInstanceReturnData(instanceId, ipv4, exitCode, adminPass);
     }
 
     public Run launch(Run run, User user) throws SlipStreamException {
@@ -412,11 +506,10 @@ public class OkeanosConnector extends CliConnectorBase {
             final List<String> cmdline = getRunInstanceCmdline(run, user);
             final String result = exec(cmdline);
 
-            final String[] instanceData = _parseRunInstanceResult(result);
-            final String instanceId = instanceData[0];
-            final String ipAddress = instanceData[1];
+            final RunInstanceReturnData instanceData = _parseRunInstanceResult(result);
+            log.info(instanceData.toString());
 
-            updateInstanceIdAndIpOnRun(run, instanceId, ipAddress);
+            updateInstanceIdAndIpOnRun(run, instanceData.instanceId, instanceData.ipv4);
         } catch (IOException|InterruptedException e) {
             log.log(Level.SEVERE, "launch", e);
             throw new SlipStreamException("Failed getting run instance command", e);
@@ -505,7 +598,9 @@ public class OkeanosConnector extends CliConnectorBase {
             final List<String> cmdline = mkList(cmdlineTpl, id);
 
             try {
+                log.info("Terminating " + id);
                 exec(cmdline);
+                log.info("Terminated " + id);
             } catch (IOException|InterruptedException e) {
                 log.log(Level.WARNING, "terminate()", e);
             } catch (ProcessException e) {
