@@ -172,8 +172,8 @@ public class OkeanosConnector extends CliConnectorBase {
 
     protected String getVmName(Run run) {
         return run.getType() == RunType.Orchestration
-            ? getOrchestratorName(run) + "-" + run.getUuid()
-            : "machine" + "-" + run.getUuid();
+            ? getOrchestratorName(run) + "-" + run.getUser() + "-" + run.getUuid()
+            : "machine" + "-" + run.getUser() + "-" + run.getUuid();
     }
 
     protected String getNetwork(Run run) throws ValidationException{
