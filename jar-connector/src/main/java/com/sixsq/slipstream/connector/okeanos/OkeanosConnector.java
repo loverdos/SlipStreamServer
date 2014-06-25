@@ -203,7 +203,7 @@ public class OkeanosConnector extends CliConnectorBase {
         }
 
         Script export(String name, String value) {
-            sb.append(format("%s=\"%s\"\n", name, value));
+            sb.append(format("export %s=\"%s\"\n", name, value));
             return this;
         }
 
