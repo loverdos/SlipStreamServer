@@ -310,10 +310,17 @@ public class OkeanosConnector extends CliConnectorBase {
             export("OKEANOS_SERVICE_REGION", configuration.getRequiredProperty(constructKey(OkeanosUserParametersFactory.SERVICE_REGION_PARAMETER_NAME))).
 
             nl().
-            commandWithEcho("mkdir", "-p", SLIPSTREAM_REPORT_DIR).
+            comment("This is for testing purposes from the command-line, technically not needed in production").
+            export("PYTHONPATH", "/opt/slipstream/client/lib").
+            comment("Also for testing purposes. These are defined in /tmp/slipstream.bootstrap as it is deployed from this script").
+            export("SLIPSTREAM_CLIENT_HOME", "/opt/slipstream/client").
+            export("SLIPSTREAM_HOME", "/opt/slipstream/client/sbin").
 
             nl().
-            commandWithEcho(
+            command("mkdir", "-p", SLIPSTREAM_REPORT_DIR).
+
+            nl().
+            command(
                 "wget", "--secure-protocol=SSLv3", "--no-check-certificate", "-O",
                 bootstrap,
                 "$SLIPSTREAM_BOOTSTRAP_BIN",
@@ -322,10 +329,10 @@ public class OkeanosConnector extends CliConnectorBase {
                 "chmod", "0755", bootstrap).
 
             nl().
-            commandWithEcho(bootstrap, targetScript, ">>", SLIPSTREAM_REPORT_DIR + "/" + logfilename, "2>&1").
+            command(bootstrap, targetScript, ">>", SLIPSTREAM_REPORT_DIR + "/" + logfilename, "2>&1").
 
             nl().
-            commandWithEcho("exit", "$?");
+            command("exec exit", "$?");
 
         final String scriptString = script.toString();
         log.info(scriptString);
