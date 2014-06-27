@@ -318,6 +318,10 @@ public class OkeanosConnector extends CliConnectorBase {
             command("mkdir", "-p", SLIPSTREAM_REPORT_DIR).
 
             nl().
+            comment("Install kamaki").
+            command("pip", "install", "kamaki", "|", "tee", "-a", SLIPSTREAM_REPORT_DIR + "/" + logfilename, "2>&1").
+
+            nl().
             command(
                 "wget", "--secure-protocol=SSLv3", "--no-check-certificate", "-O",
                 bootstrap,
