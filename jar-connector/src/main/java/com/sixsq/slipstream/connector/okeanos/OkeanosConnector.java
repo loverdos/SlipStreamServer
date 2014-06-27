@@ -76,15 +76,13 @@ public class OkeanosConnector extends CliConnectorBase {
         final boolean inOrchestrationContext = isInOrchestrationContext(run);
         log.info("KK [okeanos::getInstanceType], inOrchestrationContext = " + inOrchestrationContext);
         log.info("KK [okeanos::getInstanceType], constructKey(" +OkeanosUserParametersFactory.ORCHESTRATOR_INSTANCE_TYPE_PARAMETER_NAME+ ") = " + constructKey(OkeanosUserParametersFactory.ORCHESTRATOR_INSTANCE_TYPE_PARAMETER_NAME));
-        final ImageModule imageModule = ImageModule.load(run.getModuleResourceUrl());
-        log.info("KK [okeanos::getInstanceType], imageModule = " + imageModule + ", getInstanceType(imageModule) = " + getInstanceType(imageModule));
         return inOrchestrationContext
             ? Configuration.
                 getInstance().
                 getRequiredProperty(
                     constructKey(OkeanosUserParametersFactory.ORCHESTRATOR_INSTANCE_TYPE_PARAMETER_NAME)
                 )
-            : getInstanceType(imageModule);
+            : getInstanceType(ImageModule.load(run.getModuleResourceUrl()));
     }
 
     private void validateRun(Run run, User user) throws ConfigurationException, SlipStreamClientException, ServerExecutionEnginePluginException {
