@@ -322,6 +322,10 @@ public class OkeanosConnector extends CliConnectorBase {
             command("pip", "install", "kamaki", "|", "tee", "-a", SLIPSTREAM_REPORT_DIR + "/" + logfilename, "2>&1").
 
             nl().
+            comment("Generate keypair").
+            command("ssh-keygen", "-t", "rsa", "-N", "", "-f", "~/.ssh/id_rsa-slipstream-okeanos").
+
+            nl().
             command(
                 "wget", "--secure-protocol=SSLv3", "--no-check-certificate", "-O",
                 bootstrap,
