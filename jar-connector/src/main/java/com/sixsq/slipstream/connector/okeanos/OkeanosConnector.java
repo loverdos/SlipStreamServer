@@ -363,13 +363,19 @@ public class OkeanosConnector extends CliConnectorBase {
         }
     }
 
-    private String exec(List<String> cmdline) throws IOException, InterruptedException {
+    private String exec(
+        List<String> cmdline,
+        boolean printStdout, boolean printStderr,
+        boolean printAccStdout, boolean printAccStderr
+    ) throws IOException, InterruptedException {
         final class OutputThread extends Thread {
             final String logPrefix;
             final InputStream in;
             final StringBuilder sb;
+            final boolean printLines;
 
-            OutputThread(String logPrefix, InputStream in, StringBuilder sb) {
+            OutputThread(boolean printLines, String logPrefix, InputStream in, StringBuilder sb) {
+                this.printLines = printLines;
                 this.logPrefix = logPrefix;
                 this.in = in;
                 this.sb = sb;
@@ -383,7 +389,7 @@ public class OkeanosConnector extends CliConnectorBase {
                 String line = null;
                 try {
                     while((line = br.readLine()) != null) {
-                        log.info(logPrefix + line);
+                        if(printLines) { log.info(logPrefix + line); }
                         sb.append(line);
                         sb.append(System.getProperty("line.separator"));
                     }
@@ -412,8 +418,8 @@ public class OkeanosConnector extends CliConnectorBase {
         final StringBuilder stderrBuffer = new StringBuilder(1024);
         final ProcessBuilder pb = new ProcessBuilder(cmdline);
         final Process proc = pb.start();
-        final OutputThread stdoutThread = new OutputThread("STDOUT ", proc.getInputStream(), stdoutBuffer);
-        final OutputThread stderrThread = new OutputThread("STDERR ", proc.getErrorStream(), stderrBuffer);
+        final OutputThread stdoutThread = new OutputThread(printStdout, "STDOUT ", proc.getInputStream(), stdoutBuffer);
+        final OutputThread stderrThread = new OutputThread(printStderr, "STDERR ", proc.getErrorStream(), stderrBuffer);
 
         stdoutThread.start();
         stderrThread.start();
@@ -421,14 +427,14 @@ public class OkeanosConnector extends CliConnectorBase {
         stdoutThread.join();
         stderrThread.join();
 
-        if(stdoutBuffer.length() > 0) { log.info("STDOUT of " + trimmedCmd + "\n" + stdoutBuffer); }
-        if(stderrBuffer.length() > 0) { log.info("STDERR of " + trimmedCmd + "\n" + stderrBuffer); }
+        if(stdoutBuffer.length() > 0 && printAccStdout) { log.info("STDOUT of " + trimmedCmd + "\n" + stdoutBuffer); }
+        if(stderrBuffer.length() > 0 && printAccStderr) { log.info("STDERR of " + trimmedCmd + "\n" + stderrBuffer); }
 
         if(procResult != 0) {
-            final String msg = "Error " + procResult + " executing " + cmdline.get(0);
+            final String msg = "Exit code " + procResult + " from " + cmdsb;
             System.err.println(msg);
-//            System.err.println("STDIN:\n" + stdoutBuffer);
-//            System.err.println("STDERR:\n" + stderrBuffer);
+            if(stdoutBuffer.length() > 0 && !printAccStdout) { log.info("STDOUT of " + trimmedCmd + "\n" + stdoutBuffer); }
+            if(stderrBuffer.length() > 0 && !printAccStderr) { log.info("STDERR of " + trimmedCmd + "\n" + stderrBuffer); }
             throw new ProcessException(msg, stdoutBuffer.toString());
         }
 
@@ -513,7 +519,7 @@ public class OkeanosConnector extends CliConnectorBase {
         try {
             validateRun(run, user);
             final List<String> cmdline = getRunInstanceCmdline(run, user);
-            final String result = exec(cmdline);
+            final String result = exec(cmdline, true, true, false, false);
 
             final RunInstanceReturnData instanceData = _parseRunInstanceResult(result);
             log.info(instanceData.toString());
@@ -578,7 +584,7 @@ public class OkeanosConnector extends CliConnectorBase {
 
         final List<String> cmdline = mkList(COMMAND_DESCRIBE_INSTANCES, getCommandUserParams(user));
         try {
-            final String result = exec(cmdline);
+            final String result = exec(cmdline, false, false, true, true);
             return _parseDescribeInstanceResult(result);
         } catch (IOException|InterruptedException e) {
             log.log(Level.SEVERE, "describeInstances", e);
@@ -608,7 +614,7 @@ public class OkeanosConnector extends CliConnectorBase {
 
             try {
                 log.info("Terminating " + id);
-                exec(cmdline);
+                exec(cmdline, false, false, true, true);
                 log.info("Terminated " + id);
             } catch (IOException|InterruptedException e) {
                 log.log(Level.WARNING, "terminate()", e);
