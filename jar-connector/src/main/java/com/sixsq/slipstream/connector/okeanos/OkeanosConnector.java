@@ -221,37 +221,6 @@ public class OkeanosConnector extends CliConnectorBase {
             return this;
         }
 
-        Script commandWithEcho(String ...args) {
-            final StringBuilder sbEcho = new StringBuilder();
-            final StringBuilder sbCmd = new StringBuilder();
-
-            if(args.length > 0) {
-                sbEcho.append("echo ");
-            }
-
-            for(int i = 0; i < args.length; i++) {
-                final String arg = args[i];
-
-                sbEcho.append(arg);
-                sbCmd.append(arg);
-
-                if(i < args.length) {
-                    sbEcho.append(' ');
-                    sbCmd.append(' ');
-                }
-            }
-            if(args.length > 0) {
-                sbEcho.append('\n');
-                sbCmd.append('\n');
-
-                sb.append(sbEcho);
-                sb.append(sbCmd);
-            }
-
-            return this;
-        }
-
-
         Script raw(String s) {
             sb.append(s);
             return this;
