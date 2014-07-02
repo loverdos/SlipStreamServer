@@ -3,6 +3,7 @@ package com.sixsq.slipstream.connector.okeanos;
 import com.sixsq.slipstream.configuration.Configuration;
 import com.sixsq.slipstream.connector.CliConnectorBase;
 import com.sixsq.slipstream.connector.Connector;
+import com.sixsq.slipstream.connector.ExecutionControlUserParametersFactory;
 import com.sixsq.slipstream.connector.UserParametersFactoryBase;
 import com.sixsq.slipstream.credentials.Credentials;
 import com.sixsq.slipstream.exceptions.*;
@@ -322,6 +323,22 @@ public class OkeanosConnector extends CliConnectorBase {
     }
 
     private List<String> getRunInstanceCmdline(Run run, User user) throws SlipStreamClientException, IOException, ConfigurationException, ServerExecutionEnginePluginException {
+        // The value provided by the standard SlipStream implementation.
+        final String standardPublicSshKey = getPublicSshKey(run, user).trim();
+
+        // For ~Okeanos we augment this with the user-provided SSH key.
+        final String extraPublicSshKey = user.getParameter(
+            ExecutionControlUserParametersFactory.CATEGORY + "." + UserParametersFactoryBase.SSHKEY_PARAMETER_NAME
+        ).getValue().trim();
+
+        final String publicSshKey;
+        if(standardPublicSshKey.equals(extraPublicSshKey)) {
+            publicSshKey = standardPublicSshKey;
+        }
+        else {
+            publicSshKey = format("%s\n%s", standardPublicSshKey, extraPublicSshKey);
+        }
+
         return mkList(
             COMMAND_RUN_INSTANCES,
             getCommandUserParams(user),
@@ -330,7 +347,7 @@ public class OkeanosConnector extends CliConnectorBase {
             "--instance-name", getVmName(run),
             "--network-type", getNetwork(run),
             "--security-groups", getSecurityGroups(run),
-            "--public-key", getPublicSshKey(run, user),
+            "--public-key", publicSshKey,
             "--context-script", createContextualizationData(run, user)
         );
     }
