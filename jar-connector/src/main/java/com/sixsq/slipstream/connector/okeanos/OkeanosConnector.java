@@ -213,7 +213,14 @@ public class OkeanosConnector extends CliConnectorBase {
         Script command(String ...args) {
             for(int i = 0; i < args.length; i++) {
                 final String arg = args[i];
-                sb.append(arg);
+                if(arg.trim().isEmpty()) {
+                    sb.append('"');
+                    sb.append(arg);
+                    sb.append('"');
+                }
+                else {
+                    sb.append(arg);
+                }
                 if(i < args.length) { sb.append(' '); }
             }
             if(args.length > 0) { sb.append('\n'); }
