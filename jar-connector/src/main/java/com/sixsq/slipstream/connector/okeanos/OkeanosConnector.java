@@ -374,8 +374,11 @@ public class OkeanosConnector extends CliConnectorBase {
     private String trimTo(StringBuilder s, int length) {
         if(s.length() <= length) {
             return s.toString();
-        } else {
+        } else if(length <= 3) {
             return s.substring(0, length);
+        }
+        else {
+            return s.substring(0, length - 3) + "...";
         }
     }
 
@@ -447,7 +450,7 @@ public class OkeanosConnector extends CliConnectorBase {
         if(stderrBuffer.length() > 0 && printAccStderr) { log.info("STDERR of " + trimmedCmd + "\n" + stderrBuffer); }
 
         if(procResult != 0) {
-            final String msg = "Exit code " + procResult + " from " + cmdsb;
+            final String msg = "Exit code " + procResult + " from " + trimmedCmd;
             System.err.println(msg);
             if(stdoutBuffer.length() > 0 && !printAccStdout) { log.info("STDOUT of " + trimmedCmd + "\n" + stdoutBuffer); }
             if(stderrBuffer.length() > 0 && !printAccStderr) { log.info("STDERR of " + trimmedCmd + "\n" + stderrBuffer); }
@@ -635,7 +638,7 @@ public class OkeanosConnector extends CliConnectorBase {
             } catch (IOException|InterruptedException e) {
                 log.log(Level.WARNING, "terminate()", e);
             } catch (ProcessException e) {
-                log.log(Level.SEVERE, "describeInstances", e);
+                log.log(Level.SEVERE, "terminate()", e);
                 throw e;
             }
         }
