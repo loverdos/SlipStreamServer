@@ -297,8 +297,11 @@ public class OkeanosConnector extends CliConnectorBase {
             command("mkdir", "-p", SLIPSTREAM_REPORT_DIR).
 
             nl().
-            comment("Install kamaki").
-            command("pip", "install", "kamaki", "|", "tee", "-a", SLIPSTREAM_REPORT_DIR + "/" + logfilename, "2>&1").
+            comment("Install pip & kamaki").
+            command(
+                "aptitude", "install", "-y", "python-pip"). // FIXME this assumes 'aptitude' => Debian-based
+            command(
+                "pip", "install", "kamaki", "|", "tee", "-a", SLIPSTREAM_REPORT_DIR + "/" + logfilename, "2>&1").
 
             nl().
             comment("Generate keypair").
