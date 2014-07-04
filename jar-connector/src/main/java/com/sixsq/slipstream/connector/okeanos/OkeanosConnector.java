@@ -296,6 +296,20 @@ public class OkeanosConnector extends CliConnectorBase {
             export("SLIPSTREAM_HOME", "/opt/slipstream/client/sbin").
 
             nl().
+            comment("Some extra debugging aids for the command line. Also not needed in production.").
+            command("aptitude install -y zsh git atool htop").
+            command("chsh -s /bin/zsh").
+            command("git clone --recursive https://github.com/sorin-ionescu/prezto.git \"${ZDOTDIR:-$HOME}/.zprezto\"").
+            command("ln -s \"${ZDOTDIR:-$HOME}\"/.zprezto/runcoms/zlogin ~/.zlogin").
+            command("ln -s \"${ZDOTDIR:-$HOME}\"/.zprezto/runcoms/zlogout ~/.zlogout").
+            command("ln -s \"${ZDOTDIR:-$HOME}\"/.zprezto/runcoms/zpreztorc ~/.zpreztorc").
+            command("ln -s \"${ZDOTDIR:-$HOME}\"/.zprezto/runcoms/zprofile ~/.zprofile").
+            command("ln -s \"${ZDOTDIR:-$HOME}\"/.zprezto/runcoms/zshenv ~/.zshenv").
+            command("ln -s \"${ZDOTDIR:-$HOME}\"/.zprezto/runcoms/zshrc ~/.zshrc").
+            command("echo \"alias ll='ls -al --color'\" >> ~/.zshrc").
+            command("echo \"alias psg='ps -ef | grep -i'\" >> ~/.zshrc").
+
+            nl().
             command("mkdir", "-p", SLIPSTREAM_REPORT_DIR).
 
             nl().
