@@ -248,6 +248,8 @@ public class OkeanosConnector extends CliConnectorBase {
         final Configuration configuration = Configuration.getInstance();
 
         final String logfilename = "orchestrator.slipstream.log";
+        final String logfilepath = SLIPSTREAM_REPORT_DIR + "/" + logfilename;
+        final String StderrToStdout = "2>&1";
         final String bootstrap = "/tmp/slipstream.bootstrap";
         final String username = user.getName();
 
@@ -299,9 +301,11 @@ public class OkeanosConnector extends CliConnectorBase {
             nl().
             comment("Install pip & kamaki").
             command(
-                "aptitude", "install", "-y", "python-pip"). // FIXME this assumes 'aptitude' => Debian-based
+                "aptitude", "install", "-y", "python-pip", // FIXME this assumes 'aptitude' => Debian-based
+                StderrToStdout, "|", "tee", "-a", logfilepath
+            ).
             command(
-                "pip", "install", "kamaki", "|", "tee", "-a", SLIPSTREAM_REPORT_DIR + "/" + logfilename, "2>&1").
+                "pip", "install", "kamaki", StderrToStdout, "|", "tee", "-a", logfilepath).
 
             nl().
             comment("Generate keypair").
@@ -312,12 +316,12 @@ public class OkeanosConnector extends CliConnectorBase {
                 "wget", "--secure-protocol=SSLv3", "--no-check-certificate", "-O",
                 bootstrap,
                 "$SLIPSTREAM_BOOTSTRAP_BIN",
-                "|", "tee", "-a", SLIPSTREAM_REPORT_DIR + "/" + logfilename, "2>&1",
+                StderrToStdout, "|", "tee", "-a", logfilepath,
                 "&&",
                 "chmod", "0755", bootstrap).
 
             nl().
-            command(bootstrap, targetScript, "|", "tee", "-a", SLIPSTREAM_REPORT_DIR + "/" + logfilename, "2>&1")
+            command(bootstrap, targetScript, StderrToStdout, "|", "tee", "-a", logfilepath)
             ;
 
         return script.toString();
