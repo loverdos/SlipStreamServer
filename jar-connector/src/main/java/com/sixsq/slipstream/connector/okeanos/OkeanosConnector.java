@@ -264,25 +264,27 @@ public class OkeanosConnector extends CliConnectorBase {
         final Script script = new Script().
             raw("#!/bin/sh -e\n").
             comment("Slipstream contextualization script for ~Okeanos").
-            export("SLIPSTREAM_CLOUD", getCloudServiceName()).
+            export("SLIPSTREAM_CLOUD",              getCloudServiceName()).
             export("SLIPSTREAM_CONNECTOR_INSTANCE", getConnectorInstanceName()).
-            export("SLIPSTREAM_NODENAME", nodename).
-            export("SLIPSTREAM_DIID", run.getName()).
-            export("SLIPSTREAM_REPORT_DIR", SLIPSTREAM_REPORT_DIR).
-            export("SLIPSTREAM_SERVICEURL", configuration.baseUrl).
-            export("SLIPSTREAM_BUNDLE_URL", configuration.getRequiredProperty("slipstream.update.clienturl")).
-            export("SLIPSTREAM_BOOTSTRAP_BIN", configuration.getRequiredProperty("slipstream.update.clientbootstrapurl")).
-            export("SLIPSTREAM_CATEGORY", run.getCategory().toString()).
-            export("SLIPSTREAM_USERNAME", username).
-            export("SLIPSTREAM_COOKIE", getCookieForEnvironmentVariable(username)).
-            export("SLIPSTREAM_VERBOSITY_LEVEL", getVerboseParameterValue(user)).
+            export("SLIPSTREAM_NODENAME",           nodename).
+            export("SLIPSTREAM_DIID",               run.getName()).
+            export("SLIPSTREAM_REPORT_DIR",         SLIPSTREAM_REPORT_DIR).
+            export("SLIPSTREAM_SERVICEURL",         configuration.baseUrl).
+            export("SLIPSTREAM_BUNDLE_URL",         configuration.getRequiredProperty("slipstream.update.clienturl")).
+            export("SLIPSTREAM_BOOTSTRAP_BIN",      configuration.getRequiredProperty("slipstream.update.clientbootstrapurl")).
+            export("SLIPSTREAM_CATEGORY",           run.getCategory().toString()).
+            export("SLIPSTREAM_USERNAME",           username).
+            export("SLIPSTREAM_COOKIE",             getCookieForEnvironmentVariable(username)).
+            export("SLIPSTREAM_VERBOSITY_LEVEL",    getVerboseParameterValue(user)).
 
             nl().
-            export("CLOUDCONNECTOR_BUNDLE_URL", configuration.getRequiredProperty("cloud.connector.library.libcloud.url")).
-            export("CLOUDCONNECTOR_PYTHON_MODULENAME", CLOUDCONNECTOR_PYTHON_MODULENAME).
-            export("OKEANOS_SERVICE_TYPE", configuration.getRequiredProperty(constructKey(OkeanosUserParametersFactory.SERVICE_TYPE_PARAMETER_NAME))).
-            export("OKEANOS_SERVICE_NAME", configuration.getRequiredProperty(constructKey(OkeanosUserParametersFactory.SERVICE_NAME_PARAMETER_NAME))).
-            export("OKEANOS_SERVICE_REGION", configuration.getRequiredProperty(constructKey(OkeanosUserParametersFactory.SERVICE_REGION_PARAMETER_NAME))).
+            // NOTE We do not need libcloud for okeanos, so this can be skipped?
+            export("CLOUDCONNECTOR_BUNDLE_URL",         configuration.getRequiredProperty("cloud.connector.library.libcloud.url")).
+
+            export("CLOUDCONNECTOR_PYTHON_MODULENAME",  CLOUDCONNECTOR_PYTHON_MODULENAME).
+            export("OKEANOS_SERVICE_TYPE",              configuration.getRequiredProperty(constructKey(OkeanosUserParametersFactory.SERVICE_TYPE_PARAMETER_NAME))).
+            export("OKEANOS_SERVICE_NAME",              configuration.getRequiredProperty(constructKey(OkeanosUserParametersFactory.SERVICE_NAME_PARAMETER_NAME))).
+            export("OKEANOS_SERVICE_REGION",            configuration.getRequiredProperty(constructKey(OkeanosUserParametersFactory.SERVICE_REGION_PARAMETER_NAME))).
 
             nl().
             comment("This is for testing purposes from the command-line, technically not needed in production").
