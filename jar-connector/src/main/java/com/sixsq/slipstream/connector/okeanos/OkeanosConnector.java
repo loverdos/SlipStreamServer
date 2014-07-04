@@ -312,19 +312,15 @@ public class OkeanosConnector extends CliConnectorBase {
                 "wget", "--secure-protocol=SSLv3", "--no-check-certificate", "-O",
                 bootstrap,
                 "$SLIPSTREAM_BOOTSTRAP_BIN",
-                ">", SLIPSTREAM_REPORT_DIR + "/" + logfilename, "2>&1",
+                "|", "tee", "-a", SLIPSTREAM_REPORT_DIR + "/" + logfilename, "2>&1",
                 "&&",
                 "chmod", "0755", bootstrap).
 
             nl().
-            command(bootstrap, targetScript, ">>", SLIPSTREAM_REPORT_DIR + "/" + logfilename, "2>&1").
+            command(bootstrap, targetScript, "|", "tee", "-a", SLIPSTREAM_REPORT_DIR + "/" + logfilename, "2>&1")
+            ;
 
-            nl().
-            command("exec exit", "$?");
-
-        final String scriptString = script.toString();
-        log.info(scriptString);
-        return scriptString;
+        return script.toString();
     }
 
     private List<String> getRunInstanceCmdline(Run run, User user) throws SlipStreamClientException, IOException, ConfigurationException, ServerExecutionEnginePluginException {
