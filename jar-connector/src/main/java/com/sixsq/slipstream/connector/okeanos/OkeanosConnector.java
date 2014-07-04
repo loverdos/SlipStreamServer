@@ -305,7 +305,7 @@ public class OkeanosConnector extends CliConnectorBase {
 
             nl().
             comment("Generate keypair").
-            command("ssh-keygen", "-t", "rsa", "-N", "", "-f", "~/.ssh/id_rsa-slipstream-okeanos").
+            command("ssh-keygen", "-t", "rsa", "-N", "", "-f", "~/.ssh/id_rsa", "<", "/dev/null", "||", "true").
 
             nl().
             command(
