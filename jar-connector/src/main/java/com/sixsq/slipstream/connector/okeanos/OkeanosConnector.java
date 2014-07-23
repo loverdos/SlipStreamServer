@@ -361,6 +361,20 @@ public class OkeanosConnector extends CliConnectorBase {
                 "chmod", "0755", bootstrap).
 
             nl().
+            comment("A few more stuf before " + bootstrap).
+            command("python-dev and gcc").
+
+            nl().
+            comment("Install python-dev").
+            command("aptitude", "install", "-y", "python-dev").
+
+            nl().
+            comment("We need a C compiler (and specifically, paramiko needs gcc) before we run " + bootstrap).
+            command("aptitude", "install", "-y", "gcc", // FIXME this assumes 'aptitude' => Debian-based
+                StderrToStdout, "|", "tee", "-a", logfilepath
+            ).
+
+            nl().
             command("echo", "$$ `date`", ">", "`dirname $0`/$0.$$.5.bootstrap.start").
 
             nl().
