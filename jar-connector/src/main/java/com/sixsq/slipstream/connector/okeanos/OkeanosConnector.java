@@ -265,7 +265,13 @@ public class OkeanosConnector extends CliConnectorBase {
 
         final Script script = new Script().
             raw("#!/bin/sh -e\n").
-            comment("Slipstream contextualization script for ~Okeanos").
+            comment("+ Slipstream contextualization script for ~Okeanos").
+
+            nl().
+            comment("When did we launch?").
+            command("echo", "$$ `date`", ">", "`dirname $0`/$0.$$.1.BEGIN").
+
+            nl().
             export("SLIPSTREAM_CLOUD",              getCloudServiceName()).
             export("SLIPSTREAM_CONNECTOR_INSTANCE", getConnectorInstanceName()).
             export("SLIPSTREAM_NODENAME",           nodename).
@@ -296,6 +302,9 @@ public class OkeanosConnector extends CliConnectorBase {
             export("SLIPSTREAM_HOME", "/opt/slipstream/client/sbin").
 
             nl().
+            command("echo", "$$ `date`", ">", "`dirname $0`/$0.$$.2.debug-install.start").
+
+            nl().
             comment("Some extra debugging aids for the command line. Also not needed in production.").
             command("aptitude install -y zsh git atool htop").
             command("chsh -s /bin/zsh").
@@ -310,7 +319,13 @@ public class OkeanosConnector extends CliConnectorBase {
             command("echo \"alias psg='ps -ef | grep -i'\" >> ~/.zshrc").
 
             nl().
+            command("echo", "$$ `date`", ">", "`dirname $0`/$0.$$.2.debug-install.stop").
+
+            nl().
             command("mkdir", "-p", SLIPSTREAM_REPORT_DIR).
+
+            nl().
+            command("echo", "$$ `date`", ">", "`dirname $0`/$0.$$.3.kamaki-install.start").
 
             nl().
             comment("Install pip & kamaki").
@@ -318,12 +333,23 @@ public class OkeanosConnector extends CliConnectorBase {
                 "aptitude", "install", "-y", "python-pip", // FIXME this assumes 'aptitude' => Debian-based
                 StderrToStdout, "|", "tee", "-a", logfilepath
             ).
-            command(
-                "pip", "install", "kamaki", StderrToStdout, "|", "tee", "-a", logfilepath).
+            command("pip", "install", "--upgrade", "pip",
+                StderrToStdout, "|", "tee", "-a", logfilepath). // To get a more recent version
+            command("pip", "install", "-v", "kamaki",
+                StderrToStdout, "|", "tee", "-a", logfilepath).
+
+            nl().
+            command("echo", "$$ `date`", ">", "`dirname $0`/$0.$$.3.kamaki-install.stop").
+
+            nl().
+            command("echo", "$$ `date`", ">", "`dirname $0`/$0.$$.4.keypair-gen.start").
 
             nl().
             comment("Generate keypair").
             command("ssh-keygen", "-t", "rsa", "-N", "", "-f", "~/.ssh/id_rsa", "<", "/dev/null", "||", "true").
+
+            nl().
+            command("echo", "$$ `date`", ">", "`dirname $0`/$0.$$.4.keypair-gen.stop").
 
             nl().
             command(
@@ -335,7 +361,19 @@ public class OkeanosConnector extends CliConnectorBase {
                 "chmod", "0755", bootstrap).
 
             nl().
-            command(bootstrap, targetScript, StderrToStdout, "|", "tee", "-a", logfilepath)
+            command("echo", "$$ `date`", ">", "`dirname $0`/$0.$$.5.bootstrap.start").
+
+            nl().
+            command(bootstrap, targetScript, StderrToStdout, "|", "tee", "-a", logfilepath).
+
+            nl().
+            command("echo", "$$ `date`", ">", "`dirname $0`/$0.$$.5.bootstrap.stop").
+
+            nl().
+            command("echo", "$$ `date`", ">", "`dirname $0`/$0.$$.6.END").
+
+            nl().
+            comment("- Slipstream contextualization script for ~Okeanos")
             ;
 
         return script.toString();
