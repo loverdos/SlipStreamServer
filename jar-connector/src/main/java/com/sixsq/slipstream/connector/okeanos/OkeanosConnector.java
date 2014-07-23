@@ -361,8 +361,8 @@ public class OkeanosConnector extends CliConnectorBase {
                 "chmod", "0755", bootstrap).
 
             nl().
-            comment("A few more stuf before " + bootstrap).
-            command("python-dev and gcc").
+            comment("A few more stuff before " + bootstrap).
+            comment("python-dev and gcc").
 
             nl().
             comment("Install python-dev").
