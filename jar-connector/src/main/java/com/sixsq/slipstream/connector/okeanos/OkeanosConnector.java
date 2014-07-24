@@ -297,7 +297,7 @@ public class OkeanosConnector extends CliConnectorBase {
             nl().
             comment("This is for testing purposes from the command-line, technically not needed in production").
             export("PYTHONPATH", "/opt/slipstream/client/lib").
-            comment("Also for testing purposes. These are defined in /tmp/slipstream.bootstrap as it is deployed from this script").
+            comment("Also for testing purposes. These are defined in " + bootstrap + " as it is deployed from this script").
             export("SLIPSTREAM_CLIENT_HOME", "/opt/slipstream/client").
             export("SLIPSTREAM_HOME", "/opt/slipstream/client/sbin").
 
@@ -305,10 +305,15 @@ public class OkeanosConnector extends CliConnectorBase {
             command("echo", "$$ `date`", ">", "`dirname $0`/$0.$$.2.debug-install.start").
 
             nl().
+            comment("First update the system").
+            command("aptitude", "update", StderrToStdout, "|", "tee", "-a", logfilepath).
+
+            nl().
             comment("Some extra debugging aids for the command line. Also not needed in production.").
-            command("aptitude install -y zsh git atool htop").
+            command("aptitude install -y zsh git atool htop", StderrToStdout, "|", "tee", "-a", logfilepath).
             command("chsh -s /bin/zsh").
-            command("git clone --recursive https://github.com/sorin-ionescu/prezto.git \"${ZDOTDIR:-$HOME}/.zprezto\"").
+            command("git clone --recursive https://github.com/sorin-ionescu/prezto.git \"${ZDOTDIR:-$HOME}/.zprezto\"",
+                StderrToStdout, "|", "tee", "-a", logfilepath).
             command("ln -s \"${ZDOTDIR:-$HOME}\"/.zprezto/runcoms/zlogin ~/.zlogin").
             command("ln -s \"${ZDOTDIR:-$HOME}\"/.zprezto/runcoms/zlogout ~/.zlogout").
             command("ln -s \"${ZDOTDIR:-$HOME}\"/.zprezto/runcoms/zpreztorc ~/.zpreztorc").
@@ -329,14 +334,13 @@ public class OkeanosConnector extends CliConnectorBase {
 
             nl().
             comment("Install pip & kamaki").
-            command(
-                "aptitude", "install", "-y", "python-pip", // FIXME this assumes 'aptitude' => Debian-based
-                StderrToStdout, "|", "tee", "-a", logfilepath
+            command("aptitude", "install", "-y", "python-pip", // FIXME this assumes 'aptitude' => Debian-based
+                    StderrToStdout, "|", "tee", "-a", logfilepath
             ).
             command("pip", "install", "--upgrade", "pip",
-                StderrToStdout, "|", "tee", "-a", logfilepath). // To get a more recent version
+                    StderrToStdout, "|", "tee", "-a", logfilepath). // To get a more recent version
             command("pip", "install", "-v", "kamaki",
-                StderrToStdout, "|", "tee", "-a", logfilepath).
+                    StderrToStdout, "|", "tee", "-a", logfilepath).
 
             nl().
             command("echo", "$$ `date`", ">", "`dirname $0`/$0.$$.3.kamaki-install.stop").
@@ -366,12 +370,13 @@ public class OkeanosConnector extends CliConnectorBase {
 
             nl().
             comment("Install python-dev").
-            command("aptitude", "install", "-y", "python-dev").
+            command("aptitude", "install", "-y", "python-dev",
+                    StderrToStdout, "|", "tee", "-a", logfilepath).
 
             nl().
             comment("We need a C compiler (and specifically, paramiko needs gcc) before we run " + bootstrap).
             command("aptitude", "install", "-y", "gcc", // FIXME this assumes 'aptitude' => Debian-based
-                StderrToStdout, "|", "tee", "-a", logfilepath
+                    StderrToStdout, "|", "tee", "-a", logfilepath
             ).
 
             nl().
