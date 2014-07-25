@@ -35,7 +35,11 @@ public class OkeanosConnector extends CliConnectorBase {
 
     public boolean isEmptyOrNull(String s) { return s == null || s.isEmpty(); }
 
-    public List<String> mkList(String... args) { return Arrays.asList(args); }
+    public List<String> mkList(String... args) {
+        final List<String> list = new ArrayList<>(args.length);
+        list.addAll(Arrays.asList(args));
+        return list;
+    }
 
     public List<String> mkList(String command, List<String> others, String... more) {
         final List<String> list = new ArrayList<String>(1 + others.size() + more.length);
@@ -51,7 +55,25 @@ public class OkeanosConnector extends CliConnectorBase {
         return bigOne;
     }
 
-    public String[] toArray(List<String> list) { return list.toArray(new String[list.size()]); }
+    public List<String> mkList(String[] args, String ...more) {
+        final List<String> bigOne = mkList(args);
+        bigOne.addAll(mkList(more));
+        return bigOne;
+    }
+
+    public String[] toArray(List<String> list) {
+        return list.toArray(new String[list.size()]);
+    }
+
+    public String[] toArray(List<String> list, String ...more) {
+        list.addAll(mkList(more));
+        return list.toArray(new String[list.size()]);
+    }
+
+    public String[] toArray(String[] args, String ...more) {
+        final List<String> list = mkList(args);
+        return toArray(list, more);
+    }
 
     protected String constructKey(String key) throws ValidationException {
         return new OkeanosUserParametersFactory(getConnectorInstanceName()).constructKey(key);
@@ -192,9 +214,13 @@ public class OkeanosConnector extends CliConnectorBase {
                 ImageModule.load(run.getModuleResourceUrl()));
     }
 
-    static class Script {
+    class Script {
         final StringBuilder sb = new StringBuilder();
-        Script() {}
+        final String logfilepath;
+
+        Script(String logfilepath) {
+            this.logfilepath = logfilepath;
+        }
 
         Script comment(String comment) {
             sb.append(format("# %s\n", comment));
@@ -234,6 +260,44 @@ public class OkeanosConnector extends CliConnectorBase {
             return this;
         }
 
+        Script log(String... args) {
+            final String[] array = {"echo", "INFO", "'['`date`']'",};
+            final List<String> list = mkList(array, args);
+            final String[] newArgs = toArray(list);
+            return command(newArgs);
+        }
+
+        Script logBegin(String ...args) {
+            final String[] array = {"BEGIN",};
+            final List<String> list = mkList(array, args);
+            final String[] newArgs = toArray(list, "|", "tee", "-a", logfilepath);
+            return log(newArgs);
+        }
+
+        Script logEnd(String ...args) {
+            final String[] array = {"END  ",};
+            final List<String> list = mkList(array, args);
+            final String[] newArgs = toArray(list, "|", "tee", "-a", logfilepath);
+            return log(newArgs);
+        }
+
+        // command with BEGIN-END logging
+        Script commandL(String ...commandArgs) {
+            final List<String> enhancedList    = mkList(commandArgs, "2>&1", "|", "tee", "-a", logfilepath);
+            final String[] enhancedArgs = toArray(enhancedList);
+//            logBegin(commandArgs);
+            command(enhancedArgs);
+//            logEnd(commandArgs);
+
+            return this;
+        }
+
+        // Track progress in filesystem
+        Script fstrack(String fileSuffix) {
+            return command("echo", "$$ `date`", ">", "`dirname $0`/$0.$$." + fileSuffix);
+        }
+
+
         @Override
         public String toString() { return sb.toString(); }
     }
@@ -263,57 +327,57 @@ public class OkeanosConnector extends CliConnectorBase {
             nodename = Run.MACHINE_NAME;
         }
 
-        final Script script = new Script().
+        final Script script = new Script(logfilepath).
             raw("#!/bin/sh -e\n").
             comment("+ Slipstream contextualization script for ~Okeanos").
 
             nl().
+            logBegin().
             comment("When did we launch?").
-            command("echo", "$$ `date`", ">", "`dirname $0`/$0.$$.1.BEGIN").
+            fstrack("1.BEGIN").
 
             nl().
-            export("SLIPSTREAM_CLOUD",              getCloudServiceName()).
+            export("SLIPSTREAM_CLOUD", getCloudServiceName()).
             export("SLIPSTREAM_CONNECTOR_INSTANCE", getConnectorInstanceName()).
-            export("SLIPSTREAM_NODENAME",           nodename).
-            export("SLIPSTREAM_DIID",               run.getName()).
-            export("SLIPSTREAM_REPORT_DIR",         SLIPSTREAM_REPORT_DIR).
-            export("SLIPSTREAM_SERVICEURL",         configuration.baseUrl).
-            export("SLIPSTREAM_BUNDLE_URL",         configuration.getRequiredProperty("slipstream.update.clienturl")).
-            export("SLIPSTREAM_BOOTSTRAP_BIN",      configuration.getRequiredProperty("slipstream.update.clientbootstrapurl")).
-            export("SLIPSTREAM_CATEGORY",           run.getCategory().toString()).
+            export("SLIPSTREAM_NODENAME", nodename).
+            export("SLIPSTREAM_DIID", run.getName()).
+            export("SLIPSTREAM_REPORT_DIR", SLIPSTREAM_REPORT_DIR).
+            export("SLIPSTREAM_SERVICEURL", configuration.baseUrl).
+            export("SLIPSTREAM_BUNDLE_URL", configuration.getRequiredProperty("slipstream.update.clienturl")).
+            export("SLIPSTREAM_BOOTSTRAP_BIN", configuration.getRequiredProperty("slipstream.update.clientbootstrapurl")).
+            export("SLIPSTREAM_CATEGORY", run.getCategory().toString()).
             export("SLIPSTREAM_USERNAME",           username).
             export("SLIPSTREAM_COOKIE",             getCookieForEnvironmentVariable(username)).
             export("SLIPSTREAM_VERBOSITY_LEVEL",    getVerboseParameterValue(user)).
 
             nl().
             // NOTE We do not need libcloud for okeanos, so this can be skipped?
-            export("CLOUDCONNECTOR_BUNDLE_URL",         configuration.getRequiredProperty("cloud.connector.library.libcloud.url")).
+            export("CLOUDCONNECTOR_BUNDLE_URL", configuration.getRequiredProperty("cloud.connector.library.libcloud.url")).
 
-            export("CLOUDCONNECTOR_PYTHON_MODULENAME",  CLOUDCONNECTOR_PYTHON_MODULENAME).
-            export("OKEANOS_SERVICE_TYPE",              configuration.getRequiredProperty(constructKey(OkeanosUserParametersFactory.SERVICE_TYPE_PARAMETER_NAME))).
-            export("OKEANOS_SERVICE_NAME",              configuration.getRequiredProperty(constructKey(OkeanosUserParametersFactory.SERVICE_NAME_PARAMETER_NAME))).
-            export("OKEANOS_SERVICE_REGION",            configuration.getRequiredProperty(constructKey(OkeanosUserParametersFactory.SERVICE_REGION_PARAMETER_NAME))).
+            export("CLOUDCONNECTOR_PYTHON_MODULENAME", CLOUDCONNECTOR_PYTHON_MODULENAME).
+            export("OKEANOS_SERVICE_TYPE", configuration.getRequiredProperty(constructKey(OkeanosUserParametersFactory.SERVICE_TYPE_PARAMETER_NAME))).
+            export("OKEANOS_SERVICE_NAME", configuration.getRequiredProperty(constructKey(OkeanosUserParametersFactory.SERVICE_NAME_PARAMETER_NAME))).
+            export("OKEANOS_SERVICE_REGION", configuration.getRequiredProperty(constructKey(OkeanosUserParametersFactory.SERVICE_REGION_PARAMETER_NAME))).
 
             nl().
             comment("This is for testing purposes from the command-line, technically not needed in production").
-            export("PYTHONPATH", "/opt/slipstream/client/lib").
+            export("PYTHONPATH",                "/opt/slipstream/client/lib").
             comment("Also for testing purposes. These are defined in " + bootstrap + " as it is deployed from this script").
             export("SLIPSTREAM_CLIENT_HOME", "/opt/slipstream/client").
             export("SLIPSTREAM_HOME", "/opt/slipstream/client/sbin").
 
             nl().
-            command("echo", "$$ `date`", ">", "`dirname $0`/$0.$$.2.debug-install.start").
+            fstrack("2.debug-install.start").
 
             nl().
             comment("First update the system").
-            command("aptitude", "update", StderrToStdout, "|", "tee", "-a", logfilepath).
+            commandL("aptitude", "update").
 
             nl().
             comment("Some extra debugging aids for the command line. Also not needed in production.").
-            command("aptitude install -y zsh git atool htop", StderrToStdout, "|", "tee", "-a", logfilepath).
-            command("chsh -s /bin/zsh").
-            command("git clone --recursive https://github.com/sorin-ionescu/prezto.git \"${ZDOTDIR:-$HOME}/.zprezto\"",
-                StderrToStdout, "|", "tee", "-a", logfilepath).
+            commandL("aptitude", "install", "-y", "zsh", "git", "atool", "htop").
+            commandL("chsh", "-s", "/bin/zsh").
+            commandL("git", "clone", "--recursive", "https://github.com/sorin-ionescu/prezto.git", "\"${ZDOTDIR:-$HOME}/.zprezto\"").
             command("ln -s \"${ZDOTDIR:-$HOME}\"/.zprezto/runcoms/zlogin ~/.zlogin").
             command("ln -s \"${ZDOTDIR:-$HOME}\"/.zprezto/runcoms/zlogout ~/.zlogout").
             command("ln -s \"${ZDOTDIR:-$HOME}\"/.zprezto/runcoms/zpreztorc ~/.zpreztorc").
@@ -324,38 +388,35 @@ public class OkeanosConnector extends CliConnectorBase {
             command("echo \"alias psg='ps -ef | grep -i'\" >> ~/.zshrc").
 
             nl().
-            command("echo", "$$ `date`", ">", "`dirname $0`/$0.$$.2.debug-install.stop").
+            fstrack("2.debug-install.stop").
 
             nl().
             command("mkdir", "-p", SLIPSTREAM_REPORT_DIR).
 
             nl().
-            command("echo", "$$ `date`", ">", "`dirname $0`/$0.$$.3.kamaki-install.start").
+            fstrack("3.kamaki-install.start").
 
             nl().
             comment("Install pip & kamaki").
-            command("aptitude", "install", "-y", "python-pip", // FIXME this assumes 'aptitude' => Debian-based
-                    StderrToStdout, "|", "tee", "-a", logfilepath
-            ).
-            command("pip", "install", "--upgrade", "pip",
-                    StderrToStdout, "|", "tee", "-a", logfilepath). // To get a more recent version
-            command("pip", "install", "-v", "kamaki",
-                    StderrToStdout, "|", "tee", "-a", logfilepath).
+            commandL("aptitude", "install", "-y", "python-pip"). // FIXME this assumes 'aptitude' => Debian-based
+            commandL("pip", "install", "--upgrade", "pip"). // To get a more recent version
+            commandL("pip", "install", "-v", "kamaki").
 
             nl().
-            command("echo", "$$ `date`", ">", "`dirname $0`/$0.$$.3.kamaki-install.stop").
+            fstrack("3.kamaki-install.stop").
 
             nl().
-            command("echo", "$$ `date`", ">", "`dirname $0`/$0.$$.4.keypair-gen.start").
+            fstrack("4.keypair-gen.start").
 
             nl().
             comment("Generate keypair").
-            command("ssh-keygen", "-t", "rsa", "-N", "", "-f", "~/.ssh/id_rsa", "<", "/dev/null", "||", "true").
+            commandL("ssh-keygen", "-t", "rsa", "-N", "", "-f", "~/.ssh/id_rsa", "<", "/dev/null", "||", "true").
 
             nl().
-            command("echo", "$$ `date`", ">", "`dirname $0`/$0.$$.4.keypair-gen.stop").
+            fstrack("4.keypair-gen.stop").
 
             nl().
+            logBegin("Downloading", "$SLIPSTREAM_BOOTSTRAP_BIN", "to", bootstrap).
             command(
                 "wget", "--secure-protocol=SSLv3", "--no-check-certificate", "-O",
                 bootstrap,
@@ -363,6 +424,7 @@ public class OkeanosConnector extends CliConnectorBase {
                 StderrToStdout, "|", "tee", "-a", logfilepath,
                 "&&",
                 "chmod", "0755", bootstrap).
+            logEnd("Downloading", "$SLIPSTREAM_BOOTSTRAP_BIN", "to", bootstrap).
 
             nl().
             comment("A few more stuff before " + bootstrap).
@@ -370,26 +432,24 @@ public class OkeanosConnector extends CliConnectorBase {
 
             nl().
             comment("Install python-dev").
-            command("aptitude", "install", "-y", "python-dev",
-                    StderrToStdout, "|", "tee", "-a", logfilepath).
+            commandL("aptitude", "install", "-y", "python-dev").
 
             nl().
             comment("We need a C compiler (and specifically, paramiko needs gcc) before we run " + bootstrap).
-            command("aptitude", "install", "-y", "gcc", // FIXME this assumes 'aptitude' => Debian-based
-                    StderrToStdout, "|", "tee", "-a", logfilepath
-            ).
+            commandL("aptitude", "install", "-y", "gcc"). // FIXME this assumes 'aptitude' => Debian-based
 
             nl().
-            command("echo", "$$ `date`", ">", "`dirname $0`/$0.$$.5.bootstrap.start").
+            fstrack("5.bootstrap.start").
 
             nl().
-            command(bootstrap, targetScript, StderrToStdout, "|", "tee", "-a", logfilepath).
+            commandL(bootstrap, targetScript).
 
             nl().
-            command("echo", "$$ `date`", ">", "`dirname $0`/$0.$$.5.bootstrap.stop").
+            fstrack("5.bootstrap.stop").
 
             nl().
-            command("echo", "$$ `date`", ">", "`dirname $0`/$0.$$.6.END").
+            fstrack("6.END").
+            logEnd().
 
             nl().
             comment("- Slipstream contextualization script for ~Okeanos")
@@ -415,17 +475,26 @@ public class OkeanosConnector extends CliConnectorBase {
             publicSshKey = format("%s\n%s", standardPublicSshKey, extraPublicSshKey);
         }
 
-        return mkList(
-            COMMAND_RUN_INSTANCES,
-            getCommandUserParams(user),
-            "--instance-type", getInstanceType(run),
-            "--image-id", getImageId(run, user),
-            "--instance-name", getVmName(run),
-            "--network-type", getNetwork(run),
-            "--security-groups", getSecurityGroups(run),
-            "--public-key", publicSshKey,
-            "--context-script", createContextualizationData(run, user)
-        );
+        try {
+            return mkList(
+                COMMAND_RUN_INSTANCES,
+                getCommandUserParams(user),
+                "--instance-type", getInstanceType(run),
+                "--image-id", getImageId(run, user),
+                "--instance-name", getVmName(run),
+                "--network-type", getNetwork(run),
+                "--security-groups", getSecurityGroups(run),
+                "--public-key", publicSshKey,
+                "--context-script", createContextualizationData(run, user)
+            );
+        }
+        catch(Exception e) {
+            StringWriter sw = new StringWriter();
+            PrintWriter pw = new PrintWriter(sw);
+            e.printStackTrace(pw);
+            log.info("!!ERROR " + e + "\n" + sw.toString());
+            throw e;
+        }
     }
 
     private String trimTo(StringBuilder s, int length) {
