@@ -352,8 +352,7 @@ public class OkeanosConnector extends CliConnectorBase {
 
             nl().
             // NOTE We do not need libcloud for okeanos, so this can be skipped?
-            export("CLOUDCONNECTOR_BUNDLE_URL", configuration.getRequiredProperty("cloud.connector.library.libcloud.url")).
-
+            export("CLOUDCONNECTOR_BUNDLE_URL", configuration.getRequiredProperty(constructKey(OkeanosSystemConfigurationParametersFactory.OKEANOSLIBS_URL_PARAMETER_NAME))).
             export("CLOUDCONNECTOR_PYTHON_MODULENAME", CLOUDCONNECTOR_PYTHON_MODULENAME).
             export("OKEANOS_SERVICE_TYPE", configuration.getRequiredProperty(constructKey(OkeanosUserParametersFactory.SERVICE_TYPE_PARAMETER_NAME))).
             export("OKEANOS_SERVICE_NAME", configuration.getRequiredProperty(constructKey(OkeanosUserParametersFactory.SERVICE_NAME_PARAMETER_NAME))).

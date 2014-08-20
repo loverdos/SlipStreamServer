@@ -31,6 +31,8 @@ import static java.lang.String.format;
 public class OkeanosSystemConfigurationParametersFactory extends SystemConfigurationParametersFactoryBase {
     private static Logger log = Logger.getLogger(OkeanosSystemConfigurationParametersFactory.class.toString());
 
+    public static final String OKEANOSLIBS_URL_PARAMETER_NAME = "libs.url";
+
 	public OkeanosSystemConfigurationParametersFactory(String connectorInstanceName)
 			throws ValidationException {
 		super(connectorInstanceName);
@@ -66,11 +68,20 @@ public class OkeanosSystemConfigurationParametersFactory extends SystemConfigura
         );
     }
 
+    protected void putMandatoryLibsUrl() throws ValidationException {
+        putMandatoryParameter(
+            constructKey(OkeanosSystemConfigurationParametersFactory.OKEANOSLIBS_URL_PARAMETER_NAME),
+            "URL of the python okeanos libraries (usually a tar.gz of kamaki and all of its dependencies)",
+            "/downloads/okeanoslibs.tar.gz"
+        );
+    }
+
     @Override
 	protected void initReferenceParameters() throws ValidationException {
         log.entering(OkeanosSystemConfigurationParametersFactory.class.getSimpleName(), "initReferenceParameters");
         putMandatoryOrchestrationImageId();
 		putMandatoryEndpoint();
+        putMandatoryLibsUrl();
 		
 		putMandatoryParameter(
             constructKey(OkeanosUserParametersFactory.ORCHESTRATOR_INSTANCE_TYPE_PARAMETER_NAME),
