@@ -317,13 +317,13 @@ public class OkeanosConnector extends CliConnectorBase {
         final String bootstrap = "/tmp/slipstream.bootstrap";
         final String username = user.getName();
 
-        final String targetScript;
+        final String[] bootstrapCmdline;
         final String nodename;
         if(isInOrchestrationContext(run)){
-            targetScript = "slipstream-orchestrator";
+            bootstrapCmdline = new String[]{bootstrap, "slipstream-orchestrator"};
             nodename = getOrchestratorName(run);
         } else {
-            targetScript = "";
+            bootstrapCmdline = new String[]{bootstrap};
             nodename = Run.MACHINE_NAME;
         }
 
@@ -358,12 +358,12 @@ public class OkeanosConnector extends CliConnectorBase {
             export("OKEANOS_SERVICE_NAME", configuration.getRequiredProperty(constructKey(OkeanosUserParametersFactory.SERVICE_NAME_PARAMETER_NAME))).
             export("OKEANOS_SERVICE_REGION", configuration.getRequiredProperty(constructKey(OkeanosUserParametersFactory.SERVICE_REGION_PARAMETER_NAME))).
 
-            nl().
-            comment("This is for testing purposes from the command-line, technically not needed in production").
-            export("PYTHONPATH",                "/opt/slipstream/client/lib").
-            comment("Also for testing purposes. These are defined in " + bootstrap + " as it is deployed from this script").
-            export("SLIPSTREAM_CLIENT_HOME", "/opt/slipstream/client").
-            export("SLIPSTREAM_HOME", "/opt/slipstream/client/sbin").
+//            nl().
+//            comment("This is for testing purposes from the command-line, technically not needed in production").
+//            export("PYTHONPATH",                "/opt/slipstream/client/lib").
+//            comment("Also for testing purposes. These are defined in " + bootstrap + " as it is deployed from this script").
+//            export("SLIPSTREAM_CLIENT_HOME", "/opt/slipstream/client").
+//            export("SLIPSTREAM_HOME", "/opt/slipstream/client/sbin").
 
             nl().
             fstrack("2.debug-install.start").
@@ -429,7 +429,7 @@ public class OkeanosConnector extends CliConnectorBase {
             fstrack("5.bootstrap.start").
 
             nl().
-            commandL(bootstrap, targetScript).
+            commandL(bootstrapCmdline).
 
             nl().
             fstrack("5.bootstrap.stop").
